@@ -28,22 +28,5 @@ go.work.sum
 .env
 
 # Editor/IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Build artifacts
-bin/
-dist/
-
-# Node modules
-node_modules/
-
-# Go module cache
-pkg/mod/
+# .idea/
+# .vscode/

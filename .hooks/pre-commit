@@ -1,0 +1,23 @@
+#!/bin/sh
+# Pre-commit hook to run go vet and tests
+
+echo "Running pre-commit checks..."
+
+# Run go vet
+echo "Running go vet..."
+go vet ./...
+if [ $? -ne 0 ]; then
+    echo "go vet failed. Please fix the issues before committing."
+    exit 1
+fi
+
+# Run tests
+echo "Running tests..."
+go test ./...
+if [ $? -ne 0 ]; then
+    echo "Tests failed. Please fix the issues before committing."
+    exit 1
+fi
+
+echo "All checks passed!"
+exit 0

@@ -18,6 +18,20 @@ type Scene interface {
 	Narrator() string
 }
 
+// Footer holds footer display information
+type Footer struct {
+	CurrentScene int
+	TotalScenes  int
+	KeyBindings  string
+}
+
+// Header holds header display information
+type Header struct {
+	SceneNum   int
+	TotalScenes int
+	PhaseName  string
+}
+
 // Config holds the TUI configuration
 type Config struct {
 	FixedMode bool
@@ -34,6 +48,8 @@ type Model struct {
 	quit         bool
 	speedDelay   time.Duration
 	styles       *scenes.Styles
+	header       Header
+	footer       Footer
 }
 
 // NewModel creates a new TUI model with all scenes wired up
@@ -46,6 +62,7 @@ func NewModel(config *scenes.Config) Model {
 	}
 
 	m.scenes = m.createScenes()
+	m.updateHeaderFooter()
 
 	return m
 }
@@ -59,6 +76,20 @@ func getSpeedDelay(speed string) time.Duration {
 		return 50 * time.Millisecond
 	default:
 		return 100 * time.Millisecond
+	}
+}
+
+// updateHeaderFooter updates the header and footer data structures
+func (m *Model) updateHeaderFooter() {
+	m.header = Header{
+		SceneNum:    m.currentScene,
+		TotalScenes: len(m.scenes),
+		PhaseName:   sceneNames[m.currentScene],
+	}
+	m.footer = Footer{
+		CurrentScene: m.currentScene,
+		TotalScenes:  len(m.scenes),
+		KeyBindings:  "Enter/←/→/q",
 	}
 }
 
@@ -133,11 +164,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "right", "l", " ", "n", "j", "down":
 			if m.currentScene < len(m.scenes)-1 {
 				m.currentScene++
+				m.updateHeaderFooter()
 				return m, m.scenes[m.currentScene].Init()
 			}
 		case "left", "h", "p", "k", "up":
 			if m.currentScene > 0 {
 				m.currentScene--
+				m.updateHeaderFooter()
 				return m, m.scenes[m.currentScene].Init()
 			}
 		}
@@ -179,8 +212,10 @@ func (m Model) View() string {
 			MarginBottom(1).
 			Foreground(lipgloss.Color("226"))
 
-		name := sceneNames[m.currentScene]
-		view += headerStyle.Render(name) + "\n"
+		// Render header using Header struct
+		headerText := fmt.Sprintf("Scene %d/%d · %s",
+			m.header.SceneNum, m.header.TotalScenes, m.header.PhaseName)
+		view += headerStyle.Render(headerText) + "\n"
 
 		scene := m.scenes[m.currentScene]
 		view += scene.Render() + "\n"
@@ -198,10 +233,11 @@ func (m Model) View() string {
 		}
 	}
 
+	// Render footer using Footer struct
 	navigationStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("243"))
-	view += "\n" + navigationStyle.Render(fmt.Sprintf("[%d/%d] [←/→ or n/p to navigate] [q to quit]",
-		m.currentScene, len(m.scenes)-1))
+	view += "\n" + navigationStyle.Render(fmt.Sprintf("[%d/%d] [Key bindings: %s]",
+		m.footer.CurrentScene, m.footer.TotalScenes, m.footer.KeyBindings))
 
 	return view
 }

@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"math/big"
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -159,13 +158,18 @@ func main() {
 
 	// Demonstrate ComputeNoncePublic with a sample nonce
 	fmt.Println("\n=== ComputeNoncePublic Demo ===")
-	sampleNonce := big.NewInt(12345)
-	noncePublic, err := protocol.ComputeNoncePublic(sampleNonce)
+	// Use GenerateNonceShare to generate a cryptographically secure random nonce
+	nonce, err := protocol.GenerateNonceShare()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error generating nonce: %v\n", err)
+		os.Exit(1)
+	}
+	noncePublic, err := protocol.ComputeNoncePublic(nonce)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error computing nonce public: %v\n", err)
 		os.Exit(1)
 	}
-	fmt.Printf("Sample nonce (k): %s\n", sampleNonce.String())
+	fmt.Printf("Generated nonce (k): %s\n", nonce.String())
 	fmt.Printf("Nonce public point (R = k * G):\n")
 	fmt.Printf("  X: %s\n", noncePublic.X().String())
 	fmt.Printf("  Y: %s\n", noncePublic.Y().String())

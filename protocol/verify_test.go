@@ -262,11 +262,61 @@ func TestVerifySignatureEdgeCases(t *testing.T) {
 			sigS:    hex.EncodeToString(s.Bytes()),
 			wantErr: false,
 		},
+		{
+			name:    "R value too large (exceeds curve order)",
+			sigR:    "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141",
+			sigS:    hex.EncodeToString(s.Bytes()),
+			wantErr: false,
+		},
+		{
+			name:    "S value too large (exceeds curve order)",
+			sigR:    hex.EncodeToString(r.Bytes()),
+			sigS:    "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141",
+			wantErr: false,
+		},
+		{
+			name:    "R value is zero",
+			sigR:    "0000000000000000000000000000000000000000000000000000000000000000",
+			sigS:    hex.EncodeToString(s.Bytes()),
+			wantErr: false,
+		},
+		{
+			name:    "S value is zero",
+			sigR:    hex.EncodeToString(r.Bytes()),
+			sigS:    "0000000000000000000000000000000000000000000000000000000000000000",
+			wantErr: false,
+		},
+		{
+			name:    "R with odd length hex",
+			sigR:    "0123456789abcde",
+			sigS:    hex.EncodeToString(s.Bytes()),
+			wantErr: true,
+		},
+		{
+			name:    "S with odd length hex",
+			sigR:    hex.EncodeToString(r.Bytes()),
+			sigS:    "0123456789abcde",
+			wantErr: true,
+		},
+		{
+			name:    "public key with odd length hex",
+			sigR:    hex.EncodeToString(r.Bytes()),
+			sigS:    hex.EncodeToString(s.Bytes()),
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var msgHex string
+			var pubKeyHexToUse string
+
+			if tt.name == "public key with odd length hex" {
+				pubKeyHexToUse = "0123456789abcdef"
+			} else {
+				pubKeyHexToUse = pubKeyHex
+			}
+
 			if tt.name == "empty message" {
 				msgHex = hex.EncodeToString([]byte(""))
 			} else if tt.name == "very long message" {
@@ -275,7 +325,7 @@ func TestVerifySignatureEdgeCases(t *testing.T) {
 				msgHex = messageHex
 			}
 
-			_, err := VerifySignature(pubKeyHex, tt.sigR, tt.sigS, msgHex)
+			_, err := VerifySignature(pubKeyHexToUse, tt.sigR, tt.sigS, msgHex)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("VerifySignature() error = %v, wantErr %v", err, tt.wantErr)
 			}

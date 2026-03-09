@@ -23,14 +23,15 @@ func TestHashMessage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := protocol.HashMessage(tt.message)
+			hm := protocol.NewHashMessage(tt.message)
+			got := hm.Hash
 			expected := sha256.Sum256(tt.message)
 			if len(got) != 32 {
-				t.Errorf("HashMessage() returned %d bytes, want 32", len(got))
+				t.Errorf("NewHashMessage() returned %d bytes, want 32", len(got))
 			}
 			for i, b := range expected {
 				if got[i] != b {
-					t.Errorf("HashMessage() mismatch at byte %d: got %x, want %x", i, got[i], b)
+					t.Errorf("NewHashMessage() mismatch at byte %d: got %x, want %x", i, got[i], b)
 				}
 			}
 		})
@@ -306,7 +307,7 @@ func TestVerifyECDSASignatureValid(t *testing.T) {
 	pubKey := privKey.PubKey()
 
 	msg := []byte("test message for signing")
-	hash := protocol.HashMessage(msg)
+	hash := protocol.ComputeHash(msg)
 
 	// Sign using a single party (for testing VerifyECDSASignature in isolation)
 	n := secp256k1.S256().N
@@ -345,7 +346,7 @@ func TestVerifyECDSASignatureInvalid(t *testing.T) {
 	}
 	pubKey := privKey.PubKey()
 
-	hash := protocol.HashMessage([]byte("test message"))
+	hash := protocol.ComputeHash([]byte("test message"))
 	fakeR := big.NewInt(12345)
 	fakeS := big.NewInt(67890)
 
@@ -362,7 +363,7 @@ func TestVerifyECDSASignatureInvalid(t *testing.T) {
 func TestVerifyECDSASignatureNilInputs(t *testing.T) {
 	privKey, _ := secp256k1.GeneratePrivateKey()
 	pubKey := privKey.PubKey()
-	hash := protocol.HashMessage([]byte("msg"))
+	hash := protocol.ComputeHash([]byte("msg"))
 	r := big.NewInt(1)
 	s := big.NewInt(1)
 
@@ -421,7 +422,7 @@ func TestFullSigningFlow(t *testing.T) {
 
 			// --- Hash message ---
 			msgBytes := []byte(tt.message)
-			hash := protocol.HashMessage(msgBytes)
+			hash := protocol.ComputeHash(msgBytes)
 			z := new(big.Int).SetBytes(hash)
 
 			// --- Nonce generation ---

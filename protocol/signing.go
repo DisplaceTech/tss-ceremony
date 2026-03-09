@@ -101,7 +101,7 @@ func CombineNonces(Ra, Rb *secp256k1.PublicKey) (*big.Int, *secp256k1.PublicKey,
 	return r, R, nil
 }
 
-// HashMessage computes the SHA-256 hash of the input message.
+// ComputeHash computes the SHA-256 hash of the input message.
 //
 // This function computes the SHA-256 hash of the message bytes, which is
 // used as the input to the ECDSA signature computation.
@@ -111,7 +111,7 @@ func CombineNonces(Ra, Rb *secp256k1.PublicKey) (*big.Int, *secp256k1.PublicKey,
 //
 // Returns:
 //   - The 32-byte SHA-256 hash
-func HashMessage(message []byte) []byte {
+func ComputeHash(message []byte) []byte {
 	hash := sha256.Sum256(message)
 	return hash[:]
 }

@@ -173,4 +173,36 @@ func main() {
 	fmt.Printf("Nonce public point (R = k * G):\n")
 	fmt.Printf("  X: %s\n", noncePublic.X().String())
 	fmt.Printf("  Y: %s\n", noncePublic.Y().String())
+
+	// Demonstrate SimulateOT with sample inputs
+	fmt.Println("\n=== SimulateOT Demo ===")
+	// Generate sample OT inputs
+	senderInputs, err := protocol.GenerateOTInputs()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error generating OT inputs: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("Sender inputs: [input0=%s, input1=%s]\n", senderInputs[0].String(), senderInputs[1].String())
+
+	// Demonstrate with choice = 0
+	result0, err := protocol.SimulateOT(senderInputs, 0)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error running SimulateOT with choice=0: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("Receiver choice=0 -> receives: %s\n", result0.String())
+
+	// Demonstrate with choice = 1
+	result1, err := protocol.SimulateOT(senderInputs, 1)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error running SimulateOT with choice=1: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("Receiver choice=1 -> receives: %s\n", result1.String())
+
+	// Demonstrate error handling with invalid choice
+	_, err = protocol.SimulateOT(senderInputs, 2)
+	if err != nil {
+		fmt.Printf("Invalid choice (2) correctly returns error: %v\n", err)
+	}
 }

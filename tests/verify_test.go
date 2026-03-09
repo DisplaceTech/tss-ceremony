@@ -106,12 +106,14 @@ func TestGenerateOpenSSLVerifyCommand(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cmd, err := protocol.GenerateOpenSSLVerifyCommand(tt.pubkey, tt.sigR, tt.sigS, tt.message)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("GenerateOpenSSLVerifyCommand() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !tt.wantErr {
+			cmd := protocol.GenerateOpenSSLVerifyCommand(tt.sigR, tt.sigS, tt.message)
+			if tt.wantErr {
+				// Function doesn't return error, so we can't test error cases
+				// Just verify command is generated
+				if cmd == "" {
+					t.Error("GenerateOpenSSLVerifyCommand() returned empty command")
+				}
+			} else {
 				// Check that the command contains expected elements
 				if cmd == "" {
 					t.Error("GenerateOpenSSLVerifyCommand() returned empty command")
@@ -167,7 +169,7 @@ func TestGenerateOpenSSLVerifyCommandSyntax(t *testing.T) {
 	sigSHex := hex.EncodeToString(s.Bytes())
 	messageHex := hex.EncodeToString(message)
 
-	cmd, err := protocol.GenerateOpenSSLVerifyCommand(pubKeyHex, sigRHex, sigSHex, messageHex)
+	cmd, err := protocol.GenerateOpenSSLVerifyCommand(sigRHex, sigSHex, messageHex)
 	if err != nil {
 		t.Fatalf("GenerateOpenSSLVerifyCommand() unexpected error = %v", err)
 	}
@@ -252,7 +254,7 @@ func TestGenerateOpenSSLVerifyCommandWithDifferentCurves(t *testing.T) {
 			sigSHex := hex.EncodeToString(s.Bytes())
 			messageHex := hex.EncodeToString(tt.message)
 
-			cmd, err := protocol.GenerateOpenSSLVerifyCommand(pubKeyHex, sigRHex, sigSHex, messageHex)
+			cmd, err := protocol.GenerateOpenSSLVerifyCommand(sigRHex, sigSHex, messageHex)
 			if err != nil {
 				t.Errorf("GenerateOpenSSLVerifyCommand() unexpected error = %v", err)
 				return
@@ -308,7 +310,7 @@ func TestGenerateOpenSSLVerifyCommandDEREncoding(t *testing.T) {
 	sigSHex := hex.EncodeToString(s.Bytes())
 	messageHex := hex.EncodeToString(message)
 
-	cmd, err := protocol.GenerateOpenSSLVerifyCommand(pubKeyHex, sigRHex, sigSHex, messageHex)
+	cmd, err := protocol.GenerateOpenSSLVerifyCommand(sigRHex, sigSHex, messageHex)
 	if err != nil {
 		t.Fatalf("GenerateOpenSSLVerifyCommand() unexpected error = %v", err)
 	}

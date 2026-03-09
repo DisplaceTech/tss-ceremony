@@ -12,28 +12,16 @@ import (
 // It displays the verification result with signature components, message,
 // VALID/INVALID indicator, and OpenSSL command reference.
 type VerifyScene struct {
-	styles       *Styles
-	pubkey       string
-	sigR         string
-	sigS         string
-	message      string
-	valid        bool
-	opensslCmd   string
-	currentStep  int
-	maxSteps     int
-	noColor      bool
-}
-
-// Styles holds styling information for the TUI
-type Styles struct {
-	NoColor bool
-}
-
-// NewStyles creates a new Styles instance
-func NewStyles(noColor bool) *Styles {
-	return &Styles{
-		NoColor: noColor,
-	}
+	opensslCmd  string
+	currentStep int
+	maxSteps    int
+	noColor     bool
+	pubkey      string
+	sigR        string
+	sigS        string
+	message     string
+	valid       bool
+	styles      *Styles
 }
 
 // Hex formats a byte slice as hex in 8-char groups
@@ -70,16 +58,16 @@ func NewVerifyScene(noColor bool, pubkey, sigR, sigS, message string, valid bool
 	opensslCmd := generateOpenSSLCommand(sigR, sigS, message)
 
 	return &VerifyScene{
-		styles:     NewStyles(noColor),
-		pubkey:     pubkey,
-		sigR:       sigR,
-		sigS:       sigS,
-		message:    message,
-		valid:      valid,
-		opensslCmd: opensslCmd,
+		pubkey:      pubkey,
+		sigR:        sigR,
+		sigS:        sigS,
+		message:     message,
+		valid:       valid,
+		opensslCmd:  opensslCmd,
 		currentStep: 0,
 		maxSteps:    3,
 		noColor:     noColor,
+		styles:      &Styles{NoColor: noColor},
 	}
 }
 

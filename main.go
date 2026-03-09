@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/DisplaceTech/tss-ceremony/protocol"
 	"github.com/DisplaceTech/tss-ceremony/tui"
+	"github.com/DisplaceTech/tss-ceremony/tui/scenes"
 )
 
 // Config holds the CLI configuration
@@ -123,7 +124,7 @@ func main() {
 	}
 
 	// Initialize TUI model
-	tuiConfig := &tui.Config{
+	tuiConfig := &scenes.Config{
 		FixedMode: config.Fixed,
 		Message:   config.Message,
 		Speed:     config.Speed,

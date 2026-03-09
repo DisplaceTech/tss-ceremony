@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"math/big"
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -155,4 +156,17 @@ func main() {
 	r, s := ceremony.GetSignatureHex()
 	fmt.Printf("Signature R: %s\n", r)
 	fmt.Printf("Signature S: %s\n", s)
+
+	// Demonstrate ComputeNoncePublic with a sample nonce
+	fmt.Println("\n=== ComputeNoncePublic Demo ===")
+	sampleNonce := big.NewInt(12345)
+	noncePublic, err := protocol.ComputeNoncePublic(sampleNonce)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error computing nonce public: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Printf("Sample nonce (k): %s\n", sampleNonce.String())
+	fmt.Printf("Nonce public point (R = k * G):\n")
+	fmt.Printf("  X: %s\n", noncePublic.X().String())
+	fmt.Printf("  Y: %s\n", noncePublic.Y().String())
 }

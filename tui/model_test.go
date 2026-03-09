@@ -8,12 +8,16 @@ import (
 
 // TestBonusSceneIntegration verifies that all bonus scenes (15-19) are properly
 // integrated with the main TUI framework and can be navigated to from the main scene list.
-func TestBonusSceneIntegration(t *testing.T) {
-	model := NewModel()
+func testConfig() *Config {
+	return &Config{Speed: "normal"}
+}
 
-	// Verify we have exactly 5 bonus scenes
-	if model.GetSceneCount() != 5 {
-		t.Errorf("Expected 5 bonus scenes, got %d", model.GetSceneCount())
+func TestBonusSceneIntegration(t *testing.T) {
+	model := NewModel(testConfig())
+
+	// Verify we have all 20 scenes (0-19)
+	if model.GetSceneCount() != 20 {
+		t.Errorf("Expected 20 scenes, got %d", model.GetSceneCount())
 	}
 
 	// Verify each scene is accessible and implements the Scene interface
@@ -25,22 +29,20 @@ func TestBonusSceneIntegration(t *testing.T) {
 		"Scene 19: Why Both Exist",
 	}
 
-	for i := 0; i < model.GetSceneCount(); i++ {
+	// Verify bonus scenes (15-19) have real content
+	for i := 15; i < 20; i++ {
 		scene := model.scenes[i]
 
-		// Verify scene implements Render method
 		rendered := scene.Render()
 		if rendered == "" {
 			t.Errorf("Scene %d (%s) Render() returned empty string", i, sceneNames[i])
 		}
 
-		// Verify scene implements Narrator method
 		narrator := scene.Narrator()
 		if narrator == "" {
 			t.Errorf("Scene %d (%s) Narrator() returned empty string", i, sceneNames[i])
 		}
 
-		// Verify scene implements View method (required by tea.Model)
 		view := scene.View()
 		if view == "" {
 			t.Errorf("Scene %d (%s) View() returned empty string", i, sceneNames[i])
@@ -50,7 +52,7 @@ func TestBonusSceneIntegration(t *testing.T) {
 
 // TestSceneNavigation verifies that navigation between bonus scenes works correctly.
 func TestSceneNavigation(t *testing.T) {
-	model := NewModel()
+	model := NewModel(testConfig())
 
 	// Start at scene 0
 	if model.GetCurrentScene() != 0 {

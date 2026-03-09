@@ -1,154 +1,243 @@
 package tui
 
 import (
+	"fmt"
+	"time"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/DisplaceTech/tss-ceremony/tui/scenes"
 )
 
-// Scene represents a scene in the TUI
+// Scene represents a single scene in the ceremony.
+// Concrete scenes (from tui/scenes/) implement the full interface including
+// Render and Narrator; placeholder scenes provide stub implementations.
 type Scene interface {
 	tea.Model
 	Render() string
 	Narrator() string
 }
 
-// Model represents the main TUI model
-type Model struct {
-	currentScene int
-	scenes       []Scene
-	width        int
-	height       int
+// Config holds the TUI configuration
+type Config struct {
+	FixedMode bool
+	Message   string
+	Speed     string
+	NoColor   bool
 }
 
-// NewModel creates a new TUI model with all scenes
-func NewModel() *Model {
-	return &Model{
-		currentScene: 0,
-		scenes: []Scene{
-			// Bonus scenes (15-19)
-			scenes.NewRevealScene(),              // Scene 15: The Reveal
-			scenes.NewSchnorrCompareScene(),      // Scene 16: Schnorr vs ECDSA
-			scenes.NewScene(),                    // Scene 17: FROST Side-by-Side
-			scenes.NewFrostAnimatedScene(),       // Scene 18: Animated FROST
-			scenes.NewWhyBothScene(),             // Scene 19: Why Both Exist
-		},
+// Model represents the main TUI model that manages scenes
+type Model struct {
+	config       *Config
+	currentScene int
+	scenes       []Scene
+	quit         bool
+	speedDelay   time.Duration
+	styles       *Styles
+}
+
+// NewModel creates a new TUI model with all scenes wired up
+func NewModel(config *Config) Model {
+	m := Model{
+		config:     config,
+		quit:       false,
+		speedDelay: getSpeedDelay(config.Speed),
+		styles:     NewStyles(config.NoColor),
 	}
+
+	m.scenes = m.createScenes()
+
+	return m
+}
+
+// getSpeedDelay returns the delay duration based on speed setting
+func getSpeedDelay(speed string) time.Duration {
+	switch speed {
+	case "slow":
+		return 200 * time.Millisecond
+	case "fast":
+		return 50 * time.Millisecond
+	default:
+		return 100 * time.Millisecond
+	}
+}
+
+// sceneNames maps scene indices to display names.
+var sceneNames = [20]string{
+	"Scene 0: Placeholder",
+	"Scene 1: Placeholder",
+	"Scene 2: Placeholder",
+	"Scene 3: Placeholder",
+	"Scene 4: Placeholder",
+	"Scene 5: Placeholder",
+	"Scene 6: Placeholder",
+	"Scene 7: Placeholder",
+	"Scene 8: Placeholder",
+	"Scene 9: Placeholder",
+	"Scene 10: Placeholder",
+	"Scene 11: Placeholder",
+	"Scene 12: Placeholder",
+	"Scene 13: Placeholder",
+	"Scene 14: Placeholder",
+	"Scene 15: The Reveal",
+	"Scene 16: Schnorr vs ECDSA",
+	"Scene 17: FROST Side-by-Side",
+	"Scene 18: Animated FROST",
+	"Scene 19: Why Both Exist",
+}
+
+// createScenes creates all ceremony scenes.
+// Concrete implementations replace placeholders as they are built.
+func (m Model) createScenes() []Scene {
+	s := make([]Scene, 20)
+
+	for i := range s {
+		s[i] = &PlaceholderScene{SceneNum: i, Config: m.config, Styles: m.styles}
+	}
+
+	// Bonus scenes (15-19) — concrete implementations from PR #4.
+	s[15] = scenes.NewRevealScene()
+	s[16] = scenes.NewSchnorrCompareScene()
+	s[17] = scenes.NewScene()
+	s[18] = scenes.NewFrostAnimatedScene()
+	s[19] = scenes.NewWhyBothScene()
+
+	return s
 }
 
 // Init initializes the model
-func (m *Model) Init() tea.Cmd {
-	if len(m.scenes) > 0 {
-		return m.scenes[m.currentScene].Init()
-	}
-	return nil
+func (m Model) Init() tea.Cmd {
+	return tea.Tick(m.speedDelay, func(t time.Time) tea.Msg {
+		return tickMsg(t)
+	})
 }
 
-// Update handles events in the model
-func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// Handle global navigation
+// tickMsg is a message type for animation ticks
+type tickMsg time.Time
+
+// Update handles messages and updates the model
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "q", "ctrl+c":
+		case "q", "ctrl+c", "esc":
+			m.quit = true
 			return m, tea.Quit
-		case "n", "j", "down":
-			// Next scene
+		case "right", "l", " ", "n", "j", "down":
 			if m.currentScene < len(m.scenes)-1 {
 				m.currentScene++
 				return m, m.scenes[m.currentScene].Init()
 			}
-		case "p", "k", "up":
-			// Previous scene
+		case "left", "h", "p", "k", "up":
 			if m.currentScene > 0 {
 				m.currentScene--
 				return m, m.scenes[m.currentScene].Init()
 			}
-		case "1":
-			m.currentScene = 0
-			return m, m.scenes[m.currentScene].Init()
-		case "2":
-			m.currentScene = 1
-			return m, m.scenes[m.currentScene].Init()
-		case "3":
-			m.currentScene = 2
-			return m, m.scenes[m.currentScene].Init()
-		case "4":
-			m.currentScene = 3
-			return m, m.scenes[m.currentScene].Init()
-		case "5":
-			m.currentScene = 4
-			return m, m.scenes[m.currentScene].Init()
 		}
+
+	case tea.WindowSizeMsg:
+		// Handle window resize if needed
+
+	case tickMsg:
+		return m, tea.Tick(m.speedDelay, func(t time.Time) tea.Msg {
+			return tickMsg(t)
+		})
 	}
 
-	// Pass message to current scene
-	if len(m.scenes) > 0 {
-		scene, cmd := m.scenes[m.currentScene].Update(msg)
-		m.scenes[m.currentScene] = scene.(Scene)
+	// Update current scene
+	if m.currentScene < len(m.scenes) {
+		updated, cmd := m.scenes[m.currentScene].Update(msg)
+		m.scenes[m.currentScene] = updated.(Scene)
 		return m, cmd
 	}
 
 	return m, nil
 }
 
-// View renders the model view
-func (m *Model) View() string {
-	if len(m.scenes) == 0 {
-		return "No scenes available"
+// View renders the current scene
+func (m Model) View() string {
+	if m.quit {
+		return "Goodbye!\n"
 	}
 
-	scene := m.scenes[m.currentScene]
+	var view string
 
-	// Define styles
-	headerStyle := lipgloss.NewStyle().
-		Bold(true).
-		MarginBottom(1).
-		Foreground(lipgloss.Color("226")) // Yellow
+	if m.config.FixedMode {
+		view += fixedModeBanner() + "\n"
+	}
 
-	narratorStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("243")).
-		Bold(true).
-		MarginTop(1).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("241")).
-		Padding(0, 1)
+	if m.currentScene < len(m.scenes) {
+		headerStyle := lipgloss.NewStyle().
+			Bold(true).
+			MarginBottom(1).
+			Foreground(lipgloss.Color("226"))
+
+		name := sceneNames[m.currentScene]
+		view += headerStyle.Render(name) + "\n"
+
+		scene := m.scenes[m.currentScene]
+		view += scene.Render() + "\n"
+
+		narrator := scene.Narrator()
+		if narrator != "" {
+			narratorStyle := lipgloss.NewStyle().
+				Foreground(lipgloss.Color("243")).
+				Bold(true).
+				MarginTop(1).
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(lipgloss.Color("241")).
+				Padding(0, 1)
+			view += "\n" + narratorStyle.Render("Narrator: "+narrator) + "\n"
+		}
+	}
 
 	navigationStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("243"))
+	view += "\n" + navigationStyle.Render(fmt.Sprintf("[%d/%d] [←/→ or n/p to navigate] [q to quit]",
+		m.currentScene, len(m.scenes)-1))
 
-	// Build the view
-	var builder string
-
-	// Header with scene info
-	sceneNames := []string{
-		"Scene 15: The Reveal",
-		"Scene 16: Schnorr vs ECDSA",
-		"Scene 17: FROST Side-by-Side",
-		"Scene 18: Animated FROST",
-		"Scene 19: Why Both Exist",
-	}
-
-	builder += headerStyle.Render(sceneNames[m.currentScene]) + "\n"
-
-	// Scene content
-	builder += scene.Render() + "\n"
-
-	// Narrator panel
-	builder += "\n" + narratorStyle.Render("Narrator: "+scene.Narrator()) + "\n"
-
-	// Navigation hint
-	builder += "\n" + navigationStyle.Render("[n/p or j/k or ↑/↓ to navigate] [1-5 to jump] [q to quit]")
-
-	return builder
+	return view
 }
 
 // GetCurrentScene returns the current scene index
-func (m *Model) GetCurrentScene() int {
+func (m Model) GetCurrentScene() int {
 	return m.currentScene
 }
 
 // GetSceneCount returns the total number of scenes
-func (m *Model) GetSceneCount() int {
+func (m Model) GetSceneCount() int {
 	return len(m.scenes)
+}
+
+// fixedModeBanner returns a banner for fixed mode
+func fixedModeBanner() string {
+	return "=== FIXED MODE ==="
+}
+
+// PlaceholderScene is a placeholder for scene implementations not yet built.
+type PlaceholderScene struct {
+	SceneNum int
+	Config   *Config
+	Styles   *Styles
+}
+
+func (s *PlaceholderScene) Init() tea.Cmd { return nil }
+
+func (s *PlaceholderScene) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	return s, nil
+}
+
+func (s *PlaceholderScene) View() string {
+	if s.Config != nil && s.Config.NoColor {
+		return fmt.Sprintf("Scene %d placeholder - implement me!", s.SceneNum)
+	}
+	return fmt.Sprintf("%sScene %d placeholder - implement me!%s", "\033[36m", s.SceneNum, "\033[0m")
+}
+
+func (s *PlaceholderScene) Render() string {
+	return s.View()
+}
+
+func (s *PlaceholderScene) Narrator() string {
+	return ""
 }

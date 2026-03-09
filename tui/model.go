@@ -28,21 +28,21 @@ type Config struct {
 
 // Model represents the main TUI model that manages scenes
 type Model struct {
-	config       *Config
+	config       *scenes.Config
 	currentScene int
 	scenes       []Scene
 	quit         bool
 	speedDelay   time.Duration
-	styles       *Styles
+	styles       *scenes.Styles
 }
 
 // NewModel creates a new TUI model with all scenes wired up
-func NewModel(config *Config) Model {
+func NewModel(config *scenes.Config) Model {
 	m := Model{
 		config:     config,
 		quit:       false,
 		speedDelay: getSpeedDelay(config.Speed),
-		styles:     NewStyles(config.NoColor),
+		styles:     scenes.NewStyles(config.NoColor),
 	}
 
 	m.scenes = m.createScenes()
@@ -64,11 +64,11 @@ func getSpeedDelay(speed string) time.Duration {
 
 // sceneNames maps scene indices to display names.
 var sceneNames = [20]string{
-	"Scene 0: Placeholder",
-	"Scene 1: Placeholder",
-	"Scene 2: Placeholder",
-	"Scene 3: Placeholder",
-	"Scene 4: Placeholder",
+	"Scene 0: Title Screen",
+	"Scene 1: Protocol Parameters",
+	"Scene 2: Secret Generation",
+	"Scene 3: Public Share Exchange",
+	"Scene 4: Combined Public Key",
 	"Scene 5: Placeholder",
 	"Scene 6: Placeholder",
 	"Scene 7: Placeholder",
@@ -91,7 +91,14 @@ var sceneNames = [20]string{
 func (m Model) createScenes() []Scene {
 	s := make([]Scene, 20)
 
-	for i := range s {
+	// Core DKLS ceremony scenes (0-14)
+	s[0] = scenes.NewTitleScene(m.config, m.styles)
+	s[1] = scenes.NewConfigScene(m.config, m.styles)
+	s[2] = scenes.NewSecretGenScene(m.config, m.styles)
+	s[3] = scenes.NewPublicShareScene(m.config, m.styles)
+	s[4] = scenes.NewCombineScene(m.config, m.styles)
+
+	for i := 5; i < 15; i++ {
 		s[i] = &PlaceholderScene{SceneNum: i, Config: m.config, Styles: m.styles}
 	}
 
@@ -217,8 +224,8 @@ func fixedModeBanner() string {
 // PlaceholderScene is a placeholder for scene implementations not yet built.
 type PlaceholderScene struct {
 	SceneNum int
-	Config   *Config
-	Styles   *Styles
+	Config   *scenes.Config
+	Styles   *scenes.Styles
 }
 
 func (s *PlaceholderScene) Init() tea.Cmd { return nil }

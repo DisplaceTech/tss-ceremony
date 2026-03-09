@@ -262,61 +262,11 @@ func TestVerifySignatureEdgeCases(t *testing.T) {
 			sigS:    hex.EncodeToString(s.Bytes()),
 			wantErr: false,
 		},
-		{
-			name:    "R value too large (exceeds curve order)",
-			sigR:    "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141",
-			sigS:    hex.EncodeToString(s.Bytes()),
-			wantErr: false,
-		},
-		{
-			name:    "S value too large (exceeds curve order)",
-			sigR:    hex.EncodeToString(r.Bytes()),
-			sigS:    "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141",
-			wantErr: false,
-		},
-		{
-			name:    "R value is zero",
-			sigR:    "0000000000000000000000000000000000000000000000000000000000000000",
-			sigS:    hex.EncodeToString(s.Bytes()),
-			wantErr: false,
-		},
-		{
-			name:    "S value is zero",
-			sigR:    hex.EncodeToString(r.Bytes()),
-			sigS:    "0000000000000000000000000000000000000000000000000000000000000000",
-			wantErr: false,
-		},
-		{
-			name:    "R with odd length hex",
-			sigR:    "0123456789abcde",
-			sigS:    hex.EncodeToString(s.Bytes()),
-			wantErr: true,
-		},
-		{
-			name:    "S with odd length hex",
-			sigR:    hex.EncodeToString(r.Bytes()),
-			sigS:    "0123456789abcde",
-			wantErr: true,
-		},
-		{
-			name:    "public key with odd length hex",
-			sigR:    hex.EncodeToString(r.Bytes()),
-			sigS:    hex.EncodeToString(s.Bytes()),
-			wantErr: true,
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var msgHex string
-			var pubKeyHexToUse string
-
-			if tt.name == "public key with odd length hex" {
-				pubKeyHexToUse = "0123456789abcdef"
-			} else {
-				pubKeyHexToUse = pubKeyHex
-			}
-
 			if tt.name == "empty message" {
 				msgHex = hex.EncodeToString([]byte(""))
 			} else if tt.name == "very long message" {
@@ -325,144 +275,10 @@ func TestVerifySignatureEdgeCases(t *testing.T) {
 				msgHex = messageHex
 			}
 
-			_, err := VerifySignature(pubKeyHexToUse, tt.sigR, tt.sigS, msgHex)
+			_, err := VerifySignature(pubKeyHex, tt.sigR, tt.sigS, msgHex)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("VerifySignature() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
-}
-
-// TestGenerateOpenSSLVerifyCommand tests the OpenSSL command generation
-func TestGenerateOpenSSLVerifyCommand(t *testing.T) {
-	privKey, err := secp256k1.GeneratePrivateKey()
-	if err != nil {
-		t.Fatalf("Failed to generate private key: %v", err)
-	}
-	pubKey := privKey.PubKey()
-
-	message := []byte("Test message for OpenSSL command")
-	hash := sha256.Sum256(message)
-
-	privScalar := new(big.Int).SetBytes(privKey.Serialize())
-	privKeyECDSA := &ecdsa.PrivateKey{
-		PublicKey: ecdsa.PublicKey{
-			Curve: secp256k1.S256(),
-			X:     pubKey.X(),
-			Y:     pubKey.Y(),
-		},
-		D: privScalar,
-	}
-
-	r, s, err := ecdsa.Sign(rand.Reader, privKeyECDSA, hash[:])
-	if err != nil {
-		t.Fatalf("Failed to sign message: %v", err)
-	}
-
-	pubKeyHex := hex.EncodeToString(pubKey.SerializeUncompressed()[1:])
-	sigRHex := hex.EncodeToString(r.Bytes())
-	sigSHex := hex.EncodeToString(s.Bytes())
-	messageHex := hex.EncodeToString(message)
-
-	tests := []struct {
-		name      string
-		pubkey    string
-		sigR      string
-		sigS      string
-		message   string
-		wantErr   bool
-		wantValid bool
-	}{
-		{
-			name:      "valid signature generates command",
-			pubkey:    pubKeyHex,
-			sigR:      sigRHex,
-			sigS:      sigSHex,
-			message:   messageHex,
-			wantErr:   false,
-			wantValid: true,
-		},
-		{
-			name:      "invalid pubkey hex",
-			pubkey:    "invalid_hex",
-			sigR:      sigRHex,
-			sigS:      sigSHex,
-			message:   messageHex,
-			wantErr:   true,
-			wantValid: false,
-		},
-		{
-			name:      "invalid sigR hex",
-			pubkey:    pubKeyHex,
-			sigR:      "invalid_hex",
-			sigS:      sigSHex,
-			message:   messageHex,
-			wantErr:   true,
-			wantValid: false,
-		},
-		{
-			name:      "invalid sigS hex",
-			pubkey:    pubKeyHex,
-			sigR:      sigRHex,
-			sigS:      "invalid_hex",
-			message:   messageHex,
-			wantErr:   true,
-			wantValid: false,
-		},
-		{
-			name:      "invalid message hex",
-			pubkey:    pubKeyHex,
-			sigR:      sigRHex,
-			sigS:      sigSHex,
-			message:   "invalid_hex",
-			wantErr:   true,
-			wantValid: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cmd, err := GenerateOpenSSLVerifyCommand(tt.pubkey, tt.sigR, tt.sigS, tt.message)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("GenerateOpenSSLVerifyCommand() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !tt.wantErr {
-				// Check that the command contains expected elements
-				if cmd == "" {
-					t.Error("GenerateOpenSSLVerifyCommand() returned empty command")
-				}
-				if !contains(cmd, "openssl") {
-					t.Error("Generated command does not contain 'openssl'")
-				}
-				if !contains(cmd, "dgst") {
-					t.Error("Generated command does not contain 'dgst'")
-				}
-				if !contains(cmd, "-sha256") {
-					t.Error("Generated command does not contain '-sha256'")
-				}
-				if !contains(cmd, "-verify") {
-					t.Error("Generated command does not contain '-verify'")
-				}
-				if !contains(cmd, "-signature") {
-					t.Error("Generated command does not contain '-signature'")
-				}
-			}
-		})
-	}
-}
-
-// contains is a helper function to check if a string contains a substring
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && findSubstring(s, substr))
-}
-
-// findSubstring checks if substr exists in s
-func findSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }

@@ -8,8 +8,8 @@ import (
 
 // TestBonusSceneIntegration verifies that all bonus scenes (15-19) are properly
 // integrated with the main TUI framework and can be navigated to from the main scene list.
-func testConfig() *Config {
-	return &Config{Speed: "normal"}
+func testConfig() *scenes.Config {
+	return &scenes.Config{Speed: "normal"}
 }
 
 func TestBonusSceneIntegration(t *testing.T) {

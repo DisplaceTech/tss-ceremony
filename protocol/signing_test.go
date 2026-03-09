@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"crypto/rand"
 	"math/big"
 	"testing"
 
@@ -221,5 +222,275 @@ func TestCombineNoncesDeterministic(t *testing.T) {
 
 	if R1.X().Cmp(R2.X()) != 0 || R1.Y().Cmp(R2.Y()) != 0 {
 		t.Errorf("CombineNonces is not deterministic: R1 != R2")
+	}
+}
+
+// TestComputePartialSignature tests the ComputePartialSignature function
+func TestComputePartialSignature(t *testing.T) {
+	n := secp256k1.S256().N
+
+	tests := []struct {
+		name    string
+		ki      *big.Int
+		z       *big.Int
+		alpha_i *big.Int
+		di      *big.Int
+		wantErr bool
+	}{
+		{
+			name:    "valid inputs",
+			ki:      big.NewInt(12345),
+			z:       big.NewInt(67890),
+			alpha_i: big.NewInt(11111),
+			di:      big.NewInt(22222),
+			wantErr: false,
+		},
+		{
+			name:    "nil ki",
+			ki:      nil,
+			z:       big.NewInt(1),
+			alpha_i: big.NewInt(1),
+			di:      big.NewInt(1),
+			wantErr: true,
+		},
+		{
+			name:    "nil z",
+			ki:      big.NewInt(1),
+			z:       nil,
+			alpha_i: big.NewInt(1),
+			di:      big.NewInt(1),
+			wantErr: true,
+		},
+		{
+			name:    "nil alpha_i",
+			ki:      big.NewInt(1),
+			z:       big.NewInt(1),
+			alpha_i: nil,
+			di:      big.NewInt(1),
+			wantErr: true,
+		},
+		{
+			name:    "nil di",
+			ki:      big.NewInt(1),
+			z:       big.NewInt(1),
+			alpha_i: big.NewInt(1),
+			di:      nil,
+			wantErr: true,
+		},
+		{
+			name:    "large values near field order",
+			ki:      new(big.Int).Sub(n, big.NewInt(100)),
+			z:       new(big.Int).Sub(n, big.NewInt(200)),
+			alpha_i: new(big.Int).Sub(n, big.NewInt(300)),
+			di:      new(big.Int).Sub(n, big.NewInt(400)),
+			wantErr: false,
+		},
+		{
+			name:    "zero values",
+			ki:      big.NewInt(0),
+			z:       big.NewInt(0),
+			alpha_i: big.NewInt(0),
+			di:      big.NewInt(0),
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s_i, err := ComputePartialSignature(tt.ki, tt.z, tt.alpha_i, tt.di)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ComputePartialSignature() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr {
+				if s_i == nil {
+					t.Errorf("ComputePartialSignature() returned nil s_i")
+				}
+			}
+		})
+	}
+}
+
+// TestComputePartialSignatureValidScalar tests that output is a valid scalar
+func TestComputePartialSignatureValidScalar(t *testing.T) {
+	n := secp256k1.S256().N
+
+	// Test with many random inputs
+	for i := 0; i < 100; i++ {
+		ki, err := GenerateNonceShare()
+		if err != nil {
+			t.Fatalf("GenerateNonceShare() error: %v", err)
+		}
+
+		// Generate random z (message hash as scalar)
+		z, err := rand.Int(rand.Reader, n)
+		if err != nil {
+			t.Fatalf("rand.Int() error: %v", err)
+		}
+
+		// Generate random alpha_i
+		alpha_i, err := rand.Int(rand.Reader, n)
+		if err != nil {
+			t.Fatalf("rand.Int() error: %v", err)
+		}
+
+		// Generate random d_i (private key scalar)
+		di, err := rand.Int(rand.Reader, new(big.Int).Sub(n, big.NewInt(1)))
+		if err != nil {
+			t.Fatalf("rand.Int() error: %v", err)
+		}
+		di.Add(di, big.NewInt(1))
+
+		s_i, err := ComputePartialSignature(ki, z, alpha_i, di)
+		if err != nil {
+			t.Fatalf("ComputePartialSignature() error: %v", err)
+		}
+
+		// Verify s_i is in valid range [0, n-1]
+		if s_i.Cmp(big.NewInt(0)) < 0 {
+			t.Errorf("s_i is negative: %v", s_i)
+		}
+		if s_i.Cmp(n) >= 0 {
+			t.Errorf("s_i >= n: s_i=%v, n=%v", s_i, n)
+		}
+	}
+}
+
+// TestComputePartialSignatureDeterministic tests deterministic computation
+func TestComputePartialSignatureDeterministic(t *testing.T) {
+	// Use fixed inputs
+	ki := big.NewInt(12345)
+	z := big.NewInt(67890)
+	alpha_i := big.NewInt(11111)
+	di := big.NewInt(22222)
+
+	// Run twice
+	s1, err := ComputePartialSignature(ki, z, alpha_i, di)
+	if err != nil {
+		t.Fatalf("First ComputePartialSignature() error: %v", err)
+	}
+
+	s2, err := ComputePartialSignature(ki, z, alpha_i, di)
+	if err != nil {
+		t.Fatalf("Second ComputePartialSignature() error: %v", err)
+	}
+
+	// Results should be identical
+	if s1.Cmp(s2) != 0 {
+		t.Errorf("ComputePartialSignature is not deterministic: s1=%v, s2=%v", s1, s2)
+	}
+}
+
+// TestComputePartialSignatureFormula tests the formula s_i = k_i * z + alpha_i * d_i mod n
+func TestComputePartialSignatureFormula(t *testing.T) {
+	// Use known values
+	ki := big.NewInt(10)
+	z := big.NewInt(20)
+	alpha_i := big.NewInt(30)
+	di := big.NewInt(40)
+
+	// Expected: s_i = 10 * 20 + 30 * 40 = 200 + 1200 = 1400
+	expected := big.NewInt(1400)
+
+	s_i, err := ComputePartialSignature(ki, z, alpha_i, di)
+	if err != nil {
+		t.Fatalf("ComputePartialSignature() error: %v", err)
+	}
+
+	if s_i.Cmp(expected) != 0 {
+		t.Errorf("ComputePartialSignature() = %v, expected %v", s_i, expected)
+	}
+}
+
+// TestComputePartialSignatureModulo tests that result is properly reduced mod n
+func TestComputePartialSignatureModulo(t *testing.T) {
+	n := secp256k1.S256().N
+
+	// Use values that would overflow n without modulo
+	ki := new(big.Int).Sub(n, big.NewInt(1))
+	z := new(big.Int).Sub(n, big.NewInt(1))
+	alpha_i := new(big.Int).Sub(n, big.NewInt(1))
+	di := new(big.Int).Sub(n, big.NewInt(1))
+
+	s_i, err := ComputePartialSignature(ki, z, alpha_i, di)
+	if err != nil {
+		t.Fatalf("ComputePartialSignature() error: %v", err)
+	}
+
+	// Verify result is in valid range
+	if s_i.Cmp(big.NewInt(0)) < 0 {
+		t.Errorf("s_i is negative: %v", s_i)
+	}
+	if s_i.Cmp(n) >= 0 {
+		t.Errorf("s_i >= n: s_i=%v, n=%v", s_i, n)
+	}
+
+	// Manually compute expected value
+	term1 := new(big.Int).Mul(ki, z)
+	term2 := new(big.Int).Mul(alpha_i, di)
+	expected := new(big.Int).Add(term1, term2)
+	expected.Mod(expected, n)
+
+	if s_i.Cmp(expected) != 0 {
+		t.Errorf("ComputePartialSignature() = %v, expected %v", s_i, expected)
+	}
+}
+
+// TestComputePartialSignatureEdgeCases tests edge cases
+func TestComputePartialSignatureEdgeCases(t *testing.T) {
+	n := secp256k1.S256().N
+
+	tests := []struct {
+		name    string
+		ki      *big.Int
+		z       *big.Int
+		alpha_i *big.Int
+		di      *big.Int
+	}{
+		{
+			name:    "ki = 1, z = 1, alpha_i = 1, di = 1",
+			ki:      big.NewInt(1),
+			z:       big.NewInt(1),
+			alpha_i: big.NewInt(1),
+			di:      big.NewInt(1),
+		},
+		{
+			name:    "ki = n-1, z = 1, alpha_i = 0, di = 0",
+			ki:      new(big.Int).Sub(n, big.NewInt(1)),
+			z:       big.NewInt(1),
+			alpha_i: big.NewInt(0),
+			di:      big.NewInt(0),
+		},
+		{
+			name:    "ki = 0, z = n-1, alpha_i = 0, di = 0",
+			ki:      big.NewInt(0),
+			z:       new(big.Int).Sub(n, big.NewInt(1)),
+			alpha_i: big.NewInt(0),
+			di:      big.NewInt(0),
+		},
+		{
+			name:    "ki = 0, z = 0, alpha_i = n-1, di = n-1",
+			ki:      big.NewInt(0),
+			z:       big.NewInt(0),
+			alpha_i: new(big.Int).Sub(n, big.NewInt(1)),
+			di:      new(big.Int).Sub(n, big.NewInt(1)),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s_i, err := ComputePartialSignature(tt.ki, tt.z, tt.alpha_i, tt.di)
+			if err != nil {
+				t.Fatalf("ComputePartialSignature() error: %v", err)
+			}
+
+			// Verify result is in valid range
+			if s_i.Cmp(big.NewInt(0)) < 0 {
+				t.Errorf("s_i is negative: %v", s_i)
+			}
+			if s_i.Cmp(n) >= 0 {
+				t.Errorf("s_i >= n: s_i=%v, n=%v", s_i, n)
+			}
+		})
 	}
 }

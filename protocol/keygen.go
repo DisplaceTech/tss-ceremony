@@ -1,182 +1,306 @@
 package protocol
 
 import (
-	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"math/big"
 
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 )
 
-// CeremonyConfig holds configuration for the TSS ceremony
+// CeremonyConfig holds configuration for the TSS signing ceremony
 type CeremonyConfig struct {
-	// Fixed enables deterministic key generation for testing
-	Fixed bool
-	// Message is the message to sign (hex-encoded or plain text)
+	// FixedMode enables deterministic runs with fixed seeds for testing
+	FixedMode bool
+
+	// Message is the hex-encoded message to sign (optional, defaults to demo message)
 	Message string
+
+	// Speed controls animation speed: "slow", "normal", or "fast"
+	Speed string
+
+	// NoColor disables ANSI color output
+	NoColor bool
+
+	// FixedSeed is used for deterministic key generation when FixedMode is true
+	FixedSeed uint64
+
+	// ParticipantCount is the number of participants in the ceremony (default: 2)
+	ParticipantCount int
+
+	// Threshold is the minimum number of participants required to sign (default: 2)
+	Threshold int
+
+	// UseFROST enables FROST (Schnorr) signing instead of DKLS (ECDSA)
+	UseFROST bool
+
+	// ShowSecurityProof enables display of security proof details
+	ShowSecurityProof bool
+
+	// SkipScenes is a list of scene numbers to skip during the ceremony
+	SkipScenes []int
 }
 
-// GenerateSecretShare generates a cryptographically secure random 256-bit scalar
-// using crypto/rand for use as a secret share in the TSS ceremony.
-// Returns a 32-byte random scalar suitable for use as a secp256k1 private key.
-func GenerateSecretShare() ([]byte, error) {
-	bytes := make([]byte, 32)
-	_, err := rand.Read(bytes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate random bytes: %w", err)
+// DefaultCeremonyConfig returns a CeremonyConfig with default values
+func DefaultCeremonyConfig() *CeremonyConfig {
+	return &CeremonyConfig{
+		FixedMode:          false,
+		Message:            "",
+		Speed:              "normal",
+		NoColor:            false,
+		FixedSeed:          0,
+		ParticipantCount:   2,
+		Threshold:          2,
+		UseFROST:           false,
+		ShowSecurityProof:  false,
+		SkipScenes:         []int{},
 	}
-	return bytes, nil
 }
 
-// ComputePublicShare computes the public share by multiplying the secret scalar
-// with the generator point G on secp256k1.
-// The secret must be a valid 32-byte scalar (private key).
-// Returns the corresponding public key point.
-func ComputePublicShare(secret []byte) (*secp256k1.PublicKey, error) {
-	if len(secret) != 32 {
-		return nil, fmt.Errorf("secret must be 32 bytes, got %d", len(secret))
+// Validate checks that the configuration is valid
+func (c *CeremonyConfig) Validate() error {
+	validSpeeds := map[string]bool{
+		"slow":   true,
+		"normal": true,
+		"fast":   true,
 	}
 
-	// Create private key from bytes
-	privateKey := secp256k1.PrivKeyFromBytes(secret)
-	if privateKey == nil {
-		return nil, fmt.Errorf("invalid private key bytes")
+	if !validSpeeds[c.Speed] {
+		return fmt.Errorf("invalid speed '%s': must be one of slow, normal, or fast", c.Speed)
 	}
 
-	// Compute public key by scalar multiplication with generator point G
-	publicKey := privateKey.PubKey()
-	if publicKey == nil {
-		return nil, fmt.Errorf("failed to compute public key")
+	if c.Message != "" {
+		_, err := hex.DecodeString(c.Message)
+		if err != nil {
+			return fmt.Errorf("invalid message hex: %w", err)
+		}
 	}
 
-	return publicKey, nil
+	if c.ParticipantCount < 2 {
+		return fmt.Errorf("participant count must be at least 2, got %d", c.ParticipantCount)
+	}
+
+	if c.Threshold < 1 || c.Threshold > c.ParticipantCount {
+		return fmt.Errorf("threshold must be between 1 and participant count (%d), got %d", c.ParticipantCount, c.Threshold)
+	}
+
+	return nil
 }
 
-// CombinePublicKeys adds two public key points to produce the combined public key.
-// This performs elliptic curve point addition on secp256k1.
-// Both publicA and publicB must be valid secp256k1 public key points.
-// Returns the sum of the two points.
-//
-// Note: Since we only have public keys (not private keys), we perform point addition
-// directly on the curve. The Add method computes R = P + G, so we use a workaround:
-// we compute the combined key by adding the private key scalars and deriving the public key.
-func CombinePublicKeys(publicA, publicB *secp256k1.PublicKey) (*secp256k1.PublicKey, error) {
-	if publicA == nil {
-		return nil, fmt.Errorf("publicA cannot be nil")
+// KeygenState holds state for the key generation phase
+type KeygenState struct {
+	// Party A key material
+	PartyAKey []byte
+	PartyAPub []byte
+
+	// Party B key material
+	PartyBKey []byte
+	PartyBPub []byte
+
+	// Shared key material
+	PhantomPub []byte
+
+	// Keygen progress
+	KeysGenerated bool
+	PublicKeysDerived bool
+}
+
+// SigningState holds state for the signing phase
+type SigningState struct {
+	// Message to sign
+	Message []byte
+
+	// Partial signatures
+	PartyAPartialSig []byte
+	PartyBPartialSig []byte
+
+	// Combined signature components
+	SignatureR []byte
+	SignatureS []byte
+
+	// Signing progress
+	MessageHashed bool
+	PartialSigsGenerated bool
+	SignatureCombined bool
+}
+
+// OTState holds state for the Oblivious Transfer phase
+type OTState struct {
+	// Party A OT inputs
+	PartyAOTInput []byte
+	PartyAOTOutput []byte
+
+	// Party B OT inputs
+	PartyBOTInput []byte
+	PartyBOTOutput []byte
+
+	// OT progress
+	OTInitiated bool
+	OTCompleted bool
+}
+
+// MTAState holds state for the Message Transfer Agreement phase
+type MTAState struct {
+	// Party A MTA data
+	PartyAMTAData []byte
+	PartyAMTASig []byte
+
+	// Party B MTA data
+	PartyBMTAData []byte
+	PartyBMTASig []byte
+
+	// MTA progress
+	MTAInitiated bool
+	MTAVerified bool
+}
+
+// VerifyState holds state for the verification phase
+type VerifyState struct {
+	// Signature to verify
+	SignatureR []byte
+	SignatureS []byte
+
+	// Public key for verification
+	PublicKey []byte
+
+	// Message hash
+	MessageHash []byte
+
+	// Verification result
+	IsValid bool
+	Verified bool
+}
+
+// NewCeremonyFromConfig creates a new Ceremony instance from a CeremonyConfig
+func NewCeremonyFromConfig(config *CeremonyConfig) (*Ceremony, error) {
+	if err := config.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid ceremony config: %w", err)
 	}
-	if publicB == nil {
-		return nil, fmt.Errorf("publicB cannot be nil")
+
+	ceremony := &Ceremony{
+		FixedMode:    config.FixedMode,
+		Speed:        config.Speed,
+		NoColor:      config.NoColor,
+		KeygenState:  &KeygenState{},
+		SigningState: &SigningState{},
+		OTState:      &OTState{},
+		MTAState:     &MTAState{},
+		VerifyState:  &VerifyState{},
+		CurrentPhase: 0,
+		PhaseComplete: make(map[int]bool),
 	}
 
-	// Get the affine coordinates from both public keys
-	x1 := publicA.X()
-	y1 := publicA.Y()
-	x2 := publicB.X()
-	y2 := publicB.Y()
-
-	// The secp256k1 library's Add method computes R = P + G (adds to generator)
-	// For general point addition P + Q, we need to implement it manually
-	// or use the curve's Jacobian coordinate operations.
-	//
-	// We'll implement point addition directly using the curve equation.
-	// For secp256k1: y^2 = x^3 + 7 (mod p)
-	//
-	// Point addition formula for P1 != P2:
-	//   lambda = (y2 - y1) / (x2 - x1) (mod p)
-	//   x3 = lambda^2 - x1 - x2 (mod p)
-	//   y3 = lambda * (x1 - x3) - y1 (mod p)
-
-	p := secp256k1.S256().P
-
-	// Check if points are the same (would need point doubling)
-	xEqual := x1.Cmp(x2) == 0
-	yEqual := y1.Cmp(y2) == 0
-
-	var x3, y3 big.Int
-
-	if xEqual && yEqual {
-		// Point doubling: lambda = (3*x1^2 + a) / (2*y1)
-		// For secp256k1, a = 0, so lambda = (3*x1^2) / (2*y1)
-		x1Squared := new(big.Int).Mul(x1, x1)
-		three := big.NewInt(3)
-		numerator := new(big.Int).Mul(three, x1Squared)
-		numerator.Mod(numerator, p)
-
-		two := big.NewInt(2)
-		denominator := new(big.Int).Mul(two, y1)
-		denominator.Mod(denominator, p)
-
-		denominatorInv := new(big.Int).ModInverse(denominator, p)
-		lambda := new(big.Int).Mul(numerator, denominatorInv)
-		lambda.Mod(lambda, p)
-
-		// x3 = lambda^2 - 2*x1
-		lambdaSquared := new(big.Int).Mul(lambda, lambda)
-		lambdaSquared.Mod(lambdaSquared, p)
-		twoX1 := new(big.Int).Mul(two, x1)
-		twoX1.Mod(twoX1, p)
-		x3.Sub(lambdaSquared, twoX1)
-		x3.Mod(&x3, p)
-
-		// y3 = lambda * (x1 - x3) - y1
-		x1MinusX3 := new(big.Int).Sub(x1, &x3)
-		x1MinusX3.Mod(x1MinusX3, p)
-		y3.Mul(lambda, x1MinusX3)
-		y3.Mod(&y3, p)
-		y3.Sub(&y3, y1)
-		y3.Mod(&y3, p)
+	// Initialize message
+	if config.Message != "" {
+		msgBytes, err := hex.DecodeString(config.Message)
+		if err != nil {
+			return nil, fmt.Errorf("invalid message hex: %w", err)
+		}
+		ceremony.Message = msgBytes
 	} else {
-		// Point addition: lambda = (y2 - y1) / (x2 - x1)
-		numerator := new(big.Int).Sub(y2, y1)
-		numerator.Mod(numerator, p)
-
-		denominator := new(big.Int).Sub(x2, x1)
-		denominator.Mod(denominator, p)
-
-		denominatorInv := new(big.Int).ModInverse(denominator, p)
-		lambda := new(big.Int).Mul(numerator, denominatorInv)
-		lambda.Mod(lambda, p)
-
-		// x3 = lambda^2 - x1 - x2
-		lambdaSquared := new(big.Int).Mul(lambda, lambda)
-		lambdaSquared.Mod(lambdaSquared, p)
-		x3.Sub(lambdaSquared, x1)
-		x3.Sub(&x3, x2)
-		x3.Mod(&x3, p)
-
-		// y3 = lambda * (x1 - x3) - y1
-		x1MinusX3 := new(big.Int).Sub(x1, &x3)
-		x1MinusX3.Mod(x1MinusX3, p)
-		y3.Mul(lambda, x1MinusX3)
-		y3.Mod(&y3, p)
-		y3.Sub(&y3, y1)
-		y3.Mod(&y3, p)
+		// Default message for demonstration
+		ceremony.Message = []byte("TSS Ceremony Demo")
 	}
 
-	// Create public key from the resulting coordinates
-	// Serialize in uncompressed format: 0x04 || x || y
-	serialized := make([]byte, 65)
-	serialized[0] = 0x04
-	x3.FillBytes(serialized[1:33])
-	y3.FillBytes(serialized[33:65])
-
-	// Parse the serialized public key
-	combinedPubKey, _ := secp256k1.ParsePubKey(serialized)
-
-	if combinedPubKey == nil {
-		return nil, fmt.Errorf("failed to create combined public key")
+	// Initialize based on mode
+	if config.FixedMode {
+		if err := ceremony.initializeFixedMode(config.FixedSeed); err != nil {
+			return nil, fmt.Errorf("failed to initialize fixed mode: %w", err)
+		}
+	} else {
+		if err := ceremony.initializeRandomMode(); err != nil {
+			return nil, fmt.Errorf("failed to initialize random mode: %w", err)
+		}
 	}
 
-	return combinedPubKey, nil
+	return ceremony, nil
 }
 
-// GenerateSecretShareFixed generates a deterministic secret share from a seed
-// for testing purposes.
-func GenerateSecretShareFixed(seed int64) []byte {
-	seedBig := big.NewInt(seed)
-	bytes := seedBig.Bytes()
-	// Pad to 32 bytes
-	result := make([]byte, 32)
-	copy(result[32-len(bytes):], bytes)
-	return result
+// initializeFixedMode initializes the ceremony with deterministic keys for testing
+func (c *Ceremony) initializeFixedMode(seed uint64) error {
+	// Use fixed seeds for deterministic runs
+	if seed == 0 {
+		seed = 42 // Default seed if not specified
+	}
+
+	// Generate Party A key from seed
+	seedA := big.NewInt(int64(seed))
+	c.PartyAKey = secp256k1.PrivKeyFromBytes(seedA.Bytes())
+	if c.PartyAKey == nil {
+		return fmt.Errorf("failed to generate party A key from seed")
+	}
+
+	// Generate Party B key from seed + 1
+	seedB := big.NewInt(int64(seed + 1))
+	c.PartyBKey = secp256k1.PrivKeyFromBytes(seedB.Bytes())
+	if c.PartyBKey == nil {
+		return fmt.Errorf("failed to generate party B key from seed")
+	}
+
+	// Derive public keys
+	c.PartyAPub = c.PartyAKey.PubKey()
+	c.PartyBPub = c.PartyBKey.PubKey()
+
+	// Mark keygen state as initialized
+	c.KeygenState.KeysGenerated = true
+	c.KeygenState.PublicKeysDerived = true
+
+	return nil
+}
+
+// initializeRandomMode initializes the ceremony with cryptographically random keys
+func (c *Ceremony) initializeRandomMode() error {
+	// Generate random keys for Party A
+	var err error
+	c.PartyAKey, err = secp256k1.GeneratePrivateKey()
+	if err != nil {
+		return fmt.Errorf("failed to generate party A key: %w", err)
+	}
+
+	// Generate random keys for Party B
+	c.PartyBKey, err = secp256k1.GeneratePrivateKey()
+	if err != nil {
+		return fmt.Errorf("failed to generate party B key: %w", err)
+	}
+
+	// Derive public keys
+	c.PartyAPub = c.PartyAKey.PubKey()
+	c.PartyBPub = c.PartyBKey.PubKey()
+
+	// Mark keygen state as initialized
+	c.KeygenState.KeysGenerated = true
+	c.KeygenState.PublicKeysDerived = true
+
+	return nil
+}
+
+// IsFixedMode returns true if the ceremony is running in fixed/deterministic mode
+func (c *Ceremony) IsFixedMode() bool {
+	return c.FixedMode
+}
+
+// Reset resets the ceremony state while preserving configuration
+func (c *Ceremony) Reset() {
+	c.KeygenState = &KeygenState{}
+	c.SigningState = &SigningState{}
+	c.OTState = &OTState{}
+	c.MTAState = &MTAState{}
+	c.VerifyState = &VerifyState{}
+	c.CurrentPhase = 0
+	c.PhaseComplete = make(map[int]bool)
+	c.SignatureR = nil
+	c.SignatureS = nil
+	c.PhantomKey = nil
+}
+
+// GetConfig returns a CeremonyConfig based on the current ceremony state
+func (c *Ceremony) GetConfig() *CeremonyConfig {
+	return &CeremonyConfig{
+		FixedMode:      c.FixedMode,
+		Message:        hex.EncodeToString(c.Message),
+		Speed:          c.Speed,
+		NoColor:        c.NoColor,
+		ParticipantCount: 2,
+		Threshold:      2,
+	}
 }

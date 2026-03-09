@@ -11,8 +11,9 @@ import (
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 )
 
-// Ceremony represents the TSS signing ceremony state
+// Ceremony represents the TSS signing ceremony state, aggregating all protocol phases
 type Ceremony struct {
+	// Configuration
 	FixedMode bool
 	Message   []byte
 	Speed     string
@@ -33,6 +34,28 @@ type Ceremony struct {
 
 	// Current scene
 	CurrentScene int
+
+	// Keygen phase state
+	KeygenState *KeygenState
+
+	// Signing phase state
+	SigningState *SigningState
+
+	// OT (Oblivious Transfer) phase state
+	OTState *OTState
+
+	// MTA (Message Transfer Agreement) phase state
+	MTAState *MTAState
+
+	// Verify phase state
+	VerifyState *VerifyState
+
+	// Progress tracking
+	CurrentPhase int // 0=keygen, 1=signing, 2=OT, 3=MTA, 4=verify
+	PhaseComplete map[int]bool
+
+	// Ceremony lifecycle state
+	complete bool
 }
 
 // NewCeremony creates a new ceremony instance
@@ -41,6 +64,13 @@ func NewCeremony(fixedMode bool, message string, speed string, noColor bool) (*C
 		FixedMode: fixedMode,
 		Speed:     speed,
 		NoColor:   noColor,
+		KeygenState: &KeygenState{},
+		SigningState: &SigningState{},
+		OTState: &OTState{},
+		MTAState: &MTAState{},
+		VerifyState: &VerifyState{},
+		CurrentPhase: 0,
+		PhaseComplete: make(map[int]bool),
 	}
 
 	// Parse message if provided
@@ -164,6 +194,168 @@ func (c *Ceremony) SignMessage() error {
 	return nil
 }
 
+// GetCurrentPhase returns the current phase index
+func (c *Ceremony) GetCurrentPhase() int {
+	return c.CurrentPhase
+}
+
+// SetCurrentPhase sets the current phase index
+func (c *Ceremony) SetCurrentPhase(phase int) {
+	c.CurrentPhase = phase
+}
+
+// IsPhaseComplete returns whether a phase is complete
+func (c *Ceremony) IsPhaseComplete(phase int) bool {
+	return c.PhaseComplete[phase]
+}
+
+// MarkPhaseComplete marks a phase as complete
+func (c *Ceremony) MarkPhaseComplete(phase int) {
+	c.PhaseComplete[phase] = true
+}
+
+// GetPhaseName returns the name of a phase
+func (c *Ceremony) GetPhaseName(phase int) string {
+	phaseNames := []string{"Keygen", "Signing", "OT", "MTA", "Verify"}
+	if phase < 0 || phase >= len(phaseNames) {
+		return "Unknown"
+	}
+	return phaseNames[phase]
+}
+
+// CeremonyState represents the overall state of the ceremony
+type CeremonyState struct {
+	CurrentPhase    int
+	PhaseComplete   map[int]bool
+	KeygenState     *KeygenState
+	SigningState    *SigningState
+	OTState         *OTState
+	MTAState        *MTAState
+	VerifyState     *VerifyState
+	IsInitialized   bool
+	IsComplete      bool
+}
+
+// Init initializes the ceremony state and prepares it for execution
+func (c *Ceremony) Init() error {
+	// Reset all state
+	c.Reset()
+	
+	// Initialize phase completion tracking
+	c.PhaseComplete = make(map[int]bool)
+	c.CurrentPhase = 0
+	
+	// Initialize all phase states
+	c.KeygenState = &KeygenState{}
+	c.SigningState = &SigningState{}
+	c.OTState = &OTState{}
+	c.MTAState = &MTAState{}
+	c.VerifyState = &VerifyState{}
+	
+	// Generate keys based on mode
+	if c.FixedMode {
+		if err := c.initializeFixedMode(0); err != nil {
+			return fmt.Errorf("failed to initialize fixed mode: %w", err)
+		}
+	} else {
+		if err := c.initializeRandomMode(); err != nil {
+			return fmt.Errorf("failed to initialize random mode: %w", err)
+		}
+	}
+	
+	return nil
+}
+
+// StartPhase begins execution of a specific phase
+func (c *Ceremony) StartPhase(phase int) error {
+	// Validate phase number
+	if phase < 0 || phase > 4 {
+		return fmt.Errorf("invalid phase %d: must be between 0 and 4", phase)
+	}
+	
+	// Check if previous phase is complete (except for phase 0)
+	if phase > 0 && !c.PhaseComplete[phase-1] {
+		return fmt.Errorf("cannot start phase %d: previous phase %d is not complete", phase, phase-1)
+	}
+	
+	// Set current phase
+	c.CurrentPhase = phase
+	
+	// Initialize phase-specific state
+	switch phase {
+	case 0: // Keygen
+		c.KeygenState = &KeygenState{}
+	case 1: // Signing
+		c.SigningState = &SigningState{
+			Message: c.Message,
+		}
+	case 2: // OT
+		c.OTState = &OTState{}
+	case 3: // MTA
+		c.MTAState = &MTAState{}
+	case 4: // Verify
+		hash := sha256.Sum256(c.Message)
+		c.VerifyState = &VerifyState{
+			MessageHash: hash[:],
+		}
+	}
+	
+	return nil
+}
+
+// CompletePhase marks the current phase as complete and advances to the next phase
+func (c *Ceremony) CompletePhase() error {
+	// Mark current phase as complete
+	c.PhaseComplete[c.CurrentPhase] = true
+	
+	// Check if all phases are complete
+	allComplete := true
+	for i := 0; i <= 4; i++ {
+		if !c.PhaseComplete[i] {
+			allComplete = false
+			break
+		}
+	}
+	
+	if allComplete {
+		c.complete = true
+		return nil
+	}
+	
+	// Advance to next phase
+	nextPhase := c.CurrentPhase + 1
+	if nextPhase > 4 {
+		return nil // No more phases
+	}
+	
+	return c.StartPhase(nextPhase)
+}
+
+// GetState returns the current ceremony state
+func (c *Ceremony) GetState() *CeremonyState {
+	return &CeremonyState{
+		CurrentPhase:  c.CurrentPhase,
+		PhaseComplete: c.PhaseComplete,
+		KeygenState:   c.KeygenState,
+		SigningState:  c.SigningState,
+		OTState:       c.OTState,
+		MTAState:      c.MTAState,
+		VerifyState:   c.VerifyState,
+		IsInitialized: c.PartyAKey != nil && c.PartyBKey != nil,
+		IsComplete:    c.complete,
+	}
+}
+
+// IsComplete returns true if all phases have been completed
+func (c *Ceremony) IsComplete() bool {
+	return c.complete
+}
+
+// GetCurrentPhaseName returns the name of the current phase
+func (c *Ceremony) GetCurrentPhaseName() string {
+	return c.GetPhaseName(c.CurrentPhase)
+}
+
 // GenerateRandomBytes generates cryptographically secure random bytes
 func GenerateRandomBytes(length int) ([]byte, error) {
 	bytes := make([]byte, length)
@@ -172,4 +364,47 @@ func GenerateRandomBytes(length int) ([]byte, error) {
 		return nil, err
 	}
 	return bytes, nil
+}
+
+// GenerateSecretShare generates a cryptographically random 32-byte secret share
+func GenerateSecretShare() ([]byte, error) {
+	return GenerateRandomBytes(32)
+}
+
+// GenerateSecretShareFixed generates a deterministic 32-byte secret share from a seed
+func GenerateSecretShareFixed(seed int64) []byte {
+	seedBig := big.NewInt(seed)
+	// Use SHA256 to derive a 32-byte value from the seed
+	hash := sha256.Sum256(seedBig.Bytes())
+	return hash[:]
+}
+
+// ComputePublicShare computes the public share (public key) from a secret share
+func ComputePublicShare(secret []byte) (*secp256k1.PublicKey, error) {
+	if len(secret) != 32 {
+		return nil, fmt.Errorf("secret must be 32 bytes, got %d", len(secret))
+	}
+	privKey := secp256k1.PrivKeyFromBytes(secret)
+	if privKey == nil {
+		return nil, fmt.Errorf("invalid secret: out of range")
+	}
+	return privKey.PubKey(), nil
+}
+
+// CombinePublicKeys combines two public keys by adding their points on the curve
+func CombinePublicKeys(publicA, publicB *secp256k1.PublicKey) (*secp256k1.PublicKey, error) {
+	if publicA == nil {
+		return nil, fmt.Errorf("publicA cannot be nil")
+	}
+	if publicB == nil {
+		return nil, fmt.Errorf("publicB cannot be nil")
+	}
+	// Add the two points on the curve
+	x, y := secp256k1.S256().Add(
+		publicA.X(), publicA.Y(),
+		publicB.X(), publicB.Y(),
+	)
+	// Create uncompressed public key bytes (0x04 prefix + x + y)
+	pubKeyBytes := append(append([]byte{0x04}, x.Bytes()...), y.Bytes()...)
+	return secp256k1.ParsePubKey(pubKeyBytes)
 }

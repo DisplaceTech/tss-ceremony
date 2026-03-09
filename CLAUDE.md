@@ -2,6 +2,11 @@
 
 Interactive TUI animating a DKLS23 2-of-2 threshold ECDSA signature ceremony.
 
+## Critical Rules
+- **Do NOT delete files you did not create.** Each ticket adds or modifies files within its scope. Never remove files that existed before your ticket started — another agent created them and they are needed.
+- **Do NOT overwrite go.mod or go.sum** unless you are adding a new dependency. If you need to add a dependency, use `go get`, not manual edits.
+- **Preserve CLAUDE.md, .gitignore, LICENSE** — these are project-level files managed by the operator.
+
 ## Architecture
 - `protocol/` — Pure crypto logic. No TUI dependencies. Fully testable.
   - DKLS signing (ECDSA) is the core path

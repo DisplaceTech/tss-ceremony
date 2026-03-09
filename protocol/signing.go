@@ -3,6 +3,7 @@ package protocol
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"fmt"
 	"math/big"
 
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -259,6 +260,47 @@ var ErrInvalidSignature = &SigningError{msg: "signature is invalid"}
 
 // ErrInvalidHash is returned when the hash is invalid
 var ErrInvalidHash = &SigningError{msg: "hash must be 32 bytes"}
+
+// Signature represents an ECDSA signature with r and s components
+type Signature struct {
+	R *big.Int
+	S *big.Int
+}
+
+// Sign performs the DKLS threshold ECDSA signing ceremony.
+//
+// This function integrates CombineNonces into the signing flow by:
+// 1. Adding the two nonce public points Ra and Rb to get R = Ra + Rb
+// 2. Extracting r = x mod n from the combined point
+// 3. Combining the partial signatures sa and sb to get s = sa + sb mod n
+// 4. Returning the final signature (r, s)
+//
+// Parameters:
+//   - Ra: Party A's nonce public point
+//   - Rb: Party B's nonce public point
+//   - sa: Party A's partial signature
+//   - sb: Party B's partial signature
+//
+// Returns:
+//   - The final ECDSA signature (r, s)
+//   - The combined nonce public point R
+//   - Error if inputs are invalid
+func Sign(Ra, Rb *secp256k1.PublicKey, sa, sb *big.Int) (*Signature, *secp256k1.PublicKey, error) {
+	// Step 1: Combine nonces to get r and R
+	r, R, err := CombineNonces(Ra, Rb)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to combine nonces: %w", err)
+	}
+
+	// Step 2: Combine partial signatures to get s
+	s, err := CombinePartialSignatures(sa, sb)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to combine partial signatures: %w", err)
+	}
+
+	// Step 3: Return the final signature
+	return &Signature{R: r, S: s}, R, nil
+}
 
 // SigningError represents an error with signing protocol parameters
 type SigningError struct {

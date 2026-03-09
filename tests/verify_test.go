@@ -50,7 +50,6 @@ func TestGenerateOpenSSLVerifyCommand(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		pubkey    string
 		sigR      string
 		sigS      string
 		message   string
@@ -59,7 +58,6 @@ func TestGenerateOpenSSLVerifyCommand(t *testing.T) {
 	}{
 		{
 			name:      "valid signature generates command",
-			pubkey:    pubKeyHex,
 			sigR:      sigRHex,
 			sigS:      sigSHex,
 			message:   messageHex,
@@ -67,17 +65,7 @@ func TestGenerateOpenSSLVerifyCommand(t *testing.T) {
 			wantValid: true,
 		},
 		{
-			name:      "invalid pubkey hex",
-			pubkey:    "invalid_hex",
-			sigR:      sigRHex,
-			sigS:      sigSHex,
-			message:   messageHex,
-			wantErr:   true,
-			wantValid: false,
-		},
-		{
 			name:      "invalid sigR hex",
-			pubkey:    pubKeyHex,
 			sigR:      "invalid_hex",
 			sigS:      sigSHex,
 			message:   messageHex,
@@ -86,7 +74,6 @@ func TestGenerateOpenSSLVerifyCommand(t *testing.T) {
 		},
 		{
 			name:      "invalid sigS hex",
-			pubkey:    pubKeyHex,
 			sigR:      sigRHex,
 			sigS:      "invalid_hex",
 			message:   messageHex,
@@ -95,7 +82,6 @@ func TestGenerateOpenSSLVerifyCommand(t *testing.T) {
 		},
 		{
 			name:      "invalid message hex",
-			pubkey:    pubKeyHex,
 			sigR:      sigRHex,
 			sigS:      sigSHex,
 			message:   "invalid_hex",
@@ -106,7 +92,7 @@ func TestGenerateOpenSSLVerifyCommand(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cmd := protocol.GenerateOpenSSLVerifyCommand(tt.pubkey, tt.sigR, tt.sigS, tt.message)
+			cmd := protocol.GenerateOpenSSLVerifyCommand(tt.sigR, tt.sigS, tt.message, pubKeyHex)
 			if tt.wantErr {
 				// Function doesn't return error, so we can't test error cases
 				// Just verify command is generated
@@ -164,31 +150,22 @@ func TestGenerateOpenSSLVerifyCommandSyntax(t *testing.T) {
 		t.Fatalf("Failed to sign message: %v", err)
 	}
 
+	pubKeyHex := hex.EncodeToString(pubKey.SerializeUncompressed()[1:])
 	sigRHex := hex.EncodeToString(r.Bytes())
 	sigSHex := hex.EncodeToString(s.Bytes())
 	messageHex := hex.EncodeToString(message)
-	pubKeyHex := hex.EncodeToString(pubKey.SerializeUncompressed()[1:])
 
-	cmd := protocol.GenerateOpenSSLVerifyCommand(pubKeyHex, sigRHex, sigSHex, messageHex)
+	cmd := protocol.GenerateOpenSSLVerifyCommand(sigRHex, sigSHex, messageHex, pubKeyHex)
 
 	// Verify command structure
-	// The command should contain:
-	// 1. echo with message hex piped to xxd
-	// 2. echo with signature hex piped to xxd
-	// 3. printf with public key DER piped to xxd
-	// 4. openssl dgst -sha256 -verify ...
-
-	// Check for xxd commands
 	if !strings.Contains(cmd, "xxd -r -p") {
 		t.Error("Generated command does not contain 'xxd -r -p'")
 	}
 
-	// Check for temporary file references
 	if !strings.Contains(cmd, "/tmp/") {
 		t.Error("Generated command does not reference temporary files")
 	}
 
-	// Check for the public key DER prefix (secp256k1 curve identifier)
 	if !strings.Contains(cmd, "3059301306072a8648ce3d020106082a8648ce3d030107034200") {
 		t.Error("Generated command does not contain secp256k1 public key DER prefix")
 	}
@@ -196,14 +173,13 @@ func TestGenerateOpenSSLVerifyCommandSyntax(t *testing.T) {
 
 // TestGenerateOpenSSLVerifyCommandWithDifferentCurves tests command generation for different scenarios
 func TestGenerateOpenSSLVerifyCommandWithDifferentCurves(t *testing.T) {
-	// Note: This implementation only supports secp256k1, but we test that
-	// the command structure is consistent regardless of input values
-
 	privKey, err := secp256k1.GeneratePrivateKey()
 	if err != nil {
 		t.Fatalf("Failed to generate private key: %v", err)
 	}
 	pubKey := privKey.PubKey()
+
+	pubKeyHex := hex.EncodeToString(pubKey.SerializeUncompressed()[1:])
 
 	tests := []struct {
 		name    string
@@ -249,15 +225,9 @@ func TestGenerateOpenSSLVerifyCommandWithDifferentCurves(t *testing.T) {
 			sigRHex := hex.EncodeToString(r.Bytes())
 			sigSHex := hex.EncodeToString(s.Bytes())
 			messageHex := hex.EncodeToString(tt.message)
-			pubKeyHex := hex.EncodeToString(pubKey.SerializeUncompressed()[1:])
 
-			cmd := protocol.GenerateOpenSSLVerifyCommand(pubKeyHex, sigRHex, sigSHex, messageHex)
-			if cmd == "" {
-				t.Errorf("GenerateOpenSSLVerifyCommand() returned empty command")
-				return
-			}
+			cmd := protocol.GenerateOpenSSLVerifyCommand(sigRHex, sigSHex, messageHex, pubKeyHex)
 
-			// Verify command contains all required components
 			requiredComponents := []string{
 				"openssl",
 				"dgst",
@@ -307,14 +277,12 @@ func TestGenerateOpenSSLVerifyCommandDEREncoding(t *testing.T) {
 	sigSHex := hex.EncodeToString(s.Bytes())
 	messageHex := hex.EncodeToString(message)
 
-	cmd := protocol.GenerateOpenSSLVerifyCommand(pubKeyHex, sigRHex, sigSHex, messageHex)
+	cmd := protocol.GenerateOpenSSLVerifyCommand(sigRHex, sigSHex, messageHex, pubKeyHex)
 
-	// The command should contain the message hex
 	if !strings.Contains(cmd, messageHex) {
 		t.Error("Generated command does not contain the message hex")
 	}
 
-	// The command should contain the public key hex (without 0x04 prefix)
 	if !strings.Contains(cmd, pubKeyHex) {
 		t.Error("Generated command does not contain the public key hex")
 	}

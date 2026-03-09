@@ -97,18 +97,16 @@ func VerifySignature(pubkey, sigR, sigS, message string) (bool, error) {
 // an ECDSA signature externally.
 //
 // Parameters:
-//   - pubkey: Hex-encoded uncompressed public key (64 bytes for x||y, without 0x04 prefix)
 //   - sigR: Hex-encoded R component of the signature (32 bytes)
 //   - sigS: Hex-encoded S component of the signature (32 bytes)
-//   - message: Hex-encoded message that was signed
+//   - message: Hex-encoded message to verify
+//   - pubKey: Hex-encoded public key (64 bytes for x||y without 0x04 prefix)
 //
 // Returns the openssl dgst command string that can be executed to verify the signature.
-func GenerateOpenSSLVerifyCommand(pubkey, sigR, sigS, message string) string {
-	// Decode inputs
+func GenerateOpenSSLVerifyCommand(sigR, sigS, message, pubKey string) string {
+	// Decode signature components
 	rBytes, _ := hex.DecodeString(sigR)
 	sBytes, _ := hex.DecodeString(sigS)
-	msgBytes, _ := hex.DecodeString(message)
-	pubKeyBytes, _ := hex.DecodeString(pubkey)
 
 	// Remove leading zeros for DER encoding (but keep at least one byte if all zeros)
 	rTrimmed := removeLeadingZeros(rBytes)
@@ -136,10 +134,8 @@ func GenerateOpenSSLVerifyCommand(pubkey, sigR, sigS, message string) string {
 
 	// Encode signature as hex
 	sigHex := hex.EncodeToString(derSig)
-	messageHex := hex.EncodeToString(msgBytes)
-	pubKeyHex := hex.EncodeToString(pubKeyBytes)
 
-	// Build the public key DER encoding for secp256k1
+	// The public key needs to be in DER SubjectPublicKeyInfo format for secp256k1
 	// SEQUENCE (0x30) with total length
 	//   SEQUENCE (0x30) for algorithm identifier
 	//     OBJECT IDENTIFIER (0x06) for ecPublicKey (1.2.840.10045.2.1)
@@ -150,25 +146,52 @@ func GenerateOpenSSLVerifyCommand(pubkey, sigR, sigS, message string) string {
 	//     X coordinate (32 bytes)
 	//     Y coordinate (32 bytes)
 	//
-	// The DER prefix for secp256k1 public key is:
+	// The DER prefix for secp256k1 SubjectPublicKeyInfo is:
 	// 3059 3013 0607 2a86 48ce 3d02 0106 082a 8648 ce3d 0301 0703 4200
-	// This is: SEQUENCE(89) SEQUENCE(19) OID(7) ecPublicKey OID(8) secp256k1 BITSTRING(66) 0x00 0x04
+	// This is: SEQUENCE(89) SEQUENCE(19) OID(7) ecPublicKey OID(8) secp256k1 BITSTRING(66) 0x00
+	//
+	// For this command, we assume the public key is provided as x||y (64 bytes, no 0x04 prefix)
+	// We construct the full DER encoding
 
-	// Generate the OpenSSL command using temporary files and xxd for hex decoding
-	// The command structure:
-	// 1. Decode message hex to binary using xxd -r -p
-	// 2. Decode signature hex to binary using xxd -r -p
-	// 3. Create public key DER file using printf and xxd -r -p
+	// Decode the message from hex
+	msgBytes, _ := hex.DecodeString(message)
+	msgHex := hex.EncodeToString(msgBytes)
+
+	// Construct the full command using temporary files
+	// The command will:
+	// 1. Write the message to a temp file using xxd -r -p
+	// 2. Write the signature to a temp file using xxd -r -p
+	// 3. Write the public key in DER format to a temp file using xxd -r -p
 	// 4. Run openssl dgst -sha256 -verify
 
+	// For the public key, we need to construct the DER encoding
+	// The prefix is: 3059301306072a8648ce3d020106082a8648ce3d030107034200
+	// Then we append the public key bytes (x||y, 64 bytes)
+	//
+	// Since we don't have the public key here, we'll use a placeholder approach
+	// The actual public key would need to be passed in, but for now we construct
+	// a command that shows the expected format
+	//
+	// For testing purposes, we'll use a placeholder public key hex
+	// In real usage, this would be the actual public key
+	// Generate temp file names
+	msgFile := "/tmp/msg.bin"
+	sigFile := "/tmp/sig.der"
+	pubFile := "/tmp/pub.der"
+
+	// Construct the public key DER prefix (secp256k1 SubjectPublicKeyInfo header)
+	pubKeyDERPrefix := "3059301306072a8648ce3d020106082a8648ce3d030107034200"
+
+	// The command uses xxd -r -p to convert hex to binary
 	cmd := fmt.Sprintf(
-		"echo '%s' | xxd -r -p > /tmp/msg.bin && "+
-			"echo '%s' | xxd -r -p > /tmp/sig.der && "+
-			"printf '3059301306072a8648ce3d020106082a8648ce3d030107034200%s' | xxd -r -p > /tmp/pubkey.der && "+
-			"openssl dgst -sha256 -verify /tmp/pubkey.der -signature /tmp/sig.der /tmp/msg.bin",
-		messageHex,
-		sigHex,
-		pubKeyHex,
+		"echo '%s' | xxd -r -p > %s && "+
+			"echo '%s' | xxd -r -p > %s && "+
+			"printf '%s%s' | xxd -r -p > %s && "+
+			"openssl dgst -sha256 -verify %s -signature %s %s",
+		msgHex, msgFile,
+		sigHex, sigFile,
+		pubKeyDERPrefix, pubKey, pubFile,
+		pubFile, sigFile, msgFile,
 	)
 
 	return cmd

@@ -405,6 +405,12 @@ func CombinePublicKeys(publicA, publicB *secp256k1.PublicKey) (*secp256k1.Public
 		publicB.X(), publicB.Y(),
 	)
 	// Create uncompressed public key bytes (0x04 prefix + x + y)
-	pubKeyBytes := append(append([]byte{0x04}, x.Bytes()...), y.Bytes()...)
+	// Pad x and y to exactly 32 bytes each to handle leading-zero coordinates.
+	xBytes := x.Bytes()
+	yBytes := y.Bytes()
+	pubKeyBytes := make([]byte, 65)
+	pubKeyBytes[0] = 0x04
+	copy(pubKeyBytes[1+32-len(xBytes):33], xBytes)
+	copy(pubKeyBytes[33+32-len(yBytes):65], yBytes)
 	return secp256k1.ParsePubKey(pubKeyBytes)
 }

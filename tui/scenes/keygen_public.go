@@ -1,12 +1,14 @@
 package scenes
 
 import (
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 )
 
 // PublicShareScene represents the public share computation and exchange (Scene 3)
@@ -17,8 +19,10 @@ type PublicShareScene struct {
 	step        int // animation step within phase
 	started     bool
 	duration    time.Duration
-	partyAPub   string
-	partyBPub   string
+	partyAPub   string // Hex string of Party A's public share
+	partyBPub   string // Hex string of Party B's public share
+	secretA     []byte // Party A's secret (for computing public share)
+	secretB     []byte // Party B's secret (for computing public share)
 }
 
 // NewPublicShareScene creates a new public share scene
@@ -31,6 +35,49 @@ func NewPublicShareScene(config *Config, styles *Styles) *PublicShareScene {
 		started:  false,
 		duration: getStepDuration(config.Speed),
 	}
+}
+
+// SetSecrets sets the secret shares for both parties (called by parent model)
+func (s *PublicShareScene) SetSecrets(secretA, secretB []byte) {
+	s.secretA = secretA
+	s.secretB = secretB
+}
+
+// ComputePublicShares computes the public shares from secrets using protocol logic
+func (s *PublicShareScene) ComputePublicShares() error {
+	if s.secretA != nil && len(s.secretA) == 32 {
+		// Compute Party A's public share: A = a × G
+		privKey := secp256k1.PrivKeyFromBytes(s.secretA)
+		if privKey != nil {
+			pubKey := privKey.PubKey()
+			s.partyAPub = formatPublicKeyHex(pubKey)
+		}
+	}
+	if s.secretB != nil && len(s.secretB) == 32 {
+		// Compute Party B's public share: B = b × G
+		privKey := secp256k1.PrivKeyFromBytes(s.secretB)
+		if privKey != nil {
+			pubKey := privKey.PubKey()
+			s.partyBPub = formatPublicKeyHex(pubKey)
+		}
+	}
+	return nil
+}
+
+// formatPublicKeyHex formats a public key as hex string with 8-char groups
+func formatPublicKeyHex(pubKey *secp256k1.PublicKey) string {
+	// Use uncompressed format for display (0x04 prefix + x + y)
+	bytes := pubKey.SerializeUncompressed()
+	hexStr := hex.EncodeToString(bytes)
+	// Format with spaces every 8 characters
+	var result strings.Builder
+	for i, c := range hexStr {
+		if i > 0 && i%8 == 0 {
+			result.WriteRune(' ')
+		}
+		result.WriteRune(c)
+	}
+	return result.String()
 }
 
 // Init initializes the scene
@@ -173,9 +220,15 @@ func (s *PublicShareScene) renderScalarMult(secret, public, color string, step, 
 		}
 	}
 	
-	// Result
+	// Result - public share displayed in Yellow/Gold
+	publicColor := lipgloss.NewStyle().Foreground(lipgloss.Color("226")) // Yellow/Gold
 	if step >= maxSteps {
-		builder.WriteString(fmt.Sprintf("\n  %s%s%s = %s", color, public, Reset, s.generateRandomHex(64)))
+		// Use actual computed public share if available, otherwise generate placeholder
+		displayValue := s.partyAPub
+		if displayValue == "" {
+			displayValue = s.generateRandomHex(128)
+		}
+		builder.WriteString(fmt.Sprintf("\n  %s%s%s = %s", publicColor.Render(public), Reset, Reset, displayValue))
 	}
 	return builder.String()
 }
@@ -184,7 +237,17 @@ func (s *PublicShareScene) renderScalarMult(secret, public, color string, step, 
 func (s *PublicShareScene) renderCompletedScalarMult(secret, public, color string) string {
 	var builder strings.Builder
 	builder.WriteString(fmt.Sprintf("  %s = %s × G", public, secret))
-	builder.WriteString(fmt.Sprintf("\n  ↓ (scalar multiplication)\n  %s%s%s = %s", color, public, Reset, s.generateRandomHex(64)))
+	// Public share displayed in Yellow/Gold
+	publicColor := lipgloss.NewStyle().Foreground(lipgloss.Color("226")) // Yellow/Gold
+	// Use actual computed public share if available, otherwise generate placeholder
+	displayValue := s.partyAPub
+	if displayValue == "" {
+		displayValue = s.partyBPub
+	}
+	if displayValue == "" {
+		displayValue = s.generateRandomHex(128)
+	}
+	builder.WriteString(fmt.Sprintf("\n  ↓ (scalar multiplication)\n  %s%s%s = %s", publicColor.Render(public), Reset, Reset, displayValue))
 	return builder.String()
 }
 
@@ -200,23 +263,41 @@ func (s *PublicShareScene) renderPlaceholder(secret, public, color string) strin
 func (s *PublicShareScene) renderExchangeAnimation(step, maxSteps int) string {
 	var builder strings.Builder
 	
-	// Party A's public share
-	builder.WriteString(fmt.Sprintf("  %sA%s = a × G (Party A's public share)\n", PartyAColor, Reset))
+	// Party A's public share (in Yellow/Gold)
+	publicColor := lipgloss.NewStyle().Foreground(lipgloss.Color("226")) // Yellow/Gold
+	displayA := s.partyAPub
+	if displayA == "" {
+		displayA = s.generateRandomHex(128)
+	}
+	builder.WriteString(fmt.Sprintf("  %sA%s = a × G\n  %s%s%s = %s\n", 
+		publicColor.Render(PartyAColor+"A"+Reset), Reset,
+		publicColor.Render(PartyAColor+"A"+Reset), Reset, Reset, displayA))
 	
-	// Exchange arrows
-	arrowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("226"))
+	// Exchange arrows - animated bidirectional arrows
+	arrowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("226")) // Yellow/Gold for public exchange
 	builder.WriteString("  ")
 	for i := 0; i < maxSteps; i++ {
 		if i < step {
-			builder.WriteString(arrowStyle.Render("↔"))
+			// Alternate between → and ← to show bidirectional exchange
+			if i%2 == 0 {
+				builder.WriteString(arrowStyle.Render("→"))
+			} else {
+				builder.WriteString(arrowStyle.Render("←"))
+			}
 		} else {
 			builder.WriteString("·")
 		}
 	}
 	builder.WriteString("\n")
 	
-	// Party B's public share
-	builder.WriteString(fmt.Sprintf("  %sB%s = b × G (Party B's public share)", PartyBColor, Reset))
+	// Party B's public share (in Yellow/Gold)
+	displayB := s.partyBPub
+	if displayB == "" {
+		displayB = s.generateRandomHex(128)
+	}
+	builder.WriteString(fmt.Sprintf("  %sB%s = b × G\n  %s%s%s = %s", 
+		publicColor.Render(PartyBColor+"B"+Reset), Reset,
+		publicColor.Render(PartyBColor+"B"+Reset), Reset, Reset, displayB))
 	
 	return builder.String()
 }

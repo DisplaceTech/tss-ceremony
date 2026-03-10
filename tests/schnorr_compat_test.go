@@ -269,3 +269,104 @@ func TestSchnorrSignatureWithHashedMessage(t *testing.T) {
 		t.Error("Schnorr signature verification failed for hashed message")
 	}
 }
+
+// TestSchnorrSignatureFormat verifies that the signature format matches the
+// secp256k1 Schnorr standard: 32-byte r (x-coordinate of R) || 32-byte s.
+func TestSchnorrSignatureFormat(t *testing.T) {
+	config := protocol.FROSTConfig{
+		Fixed:   true,
+		Message: []byte("Hello, FROST!"),
+	}
+
+	signer, err := protocol.NewFROSTSigner(config)
+	if err != nil {
+		t.Fatalf("Failed to create FROST signer: %v", err)
+	}
+
+	message := []byte("Hello, FROST!")
+	sig, err := signer.Sign(message)
+	if err != nil {
+		t.Fatalf("Failed to sign message: %v", err)
+	}
+
+	// Serialize the signature to standard 64-byte format
+	sigBytes, err := protocol.SerializeSchnorrSignature(sig.R, sig.S)
+	if err != nil {
+		t.Fatalf("SerializeSchnorrSignature failed: %v", err)
+	}
+
+	// Verify the serialized signature is exactly 64 bytes
+	if len(sigBytes) != protocol.SchnorrSigSize {
+		t.Errorf("Serialized signature has length %d, expected %d", len(sigBytes), protocol.SchnorrSigSize)
+	}
+
+	// Validate the encoding
+	if err := protocol.ValidateSchnorrEncoding(sigBytes); err != nil {
+		t.Errorf("ValidateSchnorrEncoding failed: %v", err)
+	}
+
+	// Parse the signature back
+	r, s, err := protocol.ParseSchnorrSignature(sigBytes)
+	if err != nil {
+		t.Fatalf("ParseSchnorrSignature failed: %v", err)
+	}
+
+	// Verify parsed values match original
+	if r.Cmp(sig.R.X()) != 0 {
+		t.Error("Parsed r does not match original R x-coordinate")
+	}
+	if s.Cmp(sig.S) != 0 {
+		t.Error("Parsed s does not match original S")
+	}
+
+	// Verify the signature still validates after round-trip
+	publicKey := signer.GetCombinedPublicKey()
+	valid, err := protocol.VerifySchnorrSignature(publicKey, sig.R, sig.S, message)
+	if err != nil {
+		t.Fatalf("VerifySchnorrSignature after round-trip failed: %v", err)
+	}
+	if !valid {
+		t.Error("Schnorr signature verification failed after serialize/parse round-trip")
+	}
+}
+
+// TestSchnorrSignatureInvalidEncoding tests that invalid encodings are rejected.
+func TestSchnorrSignatureInvalidEncoding(t *testing.T) {
+	n := secp256k1.S256().N
+
+	// Test 1: Wrong length
+	invalidSig := make([]byte, 63)
+	if err := protocol.ValidateSchnorrEncoding(invalidSig); err == nil {
+		t.Error("Expected error for 63-byte signature")
+	}
+
+	// Test 2: r = 0
+	zeroRSig := make([]byte, 64)
+	copy(zeroRSig[32:], n.Bytes())
+	if err := protocol.ValidateSchnorrEncoding(zeroRSig); err == nil {
+		t.Error("Expected error for r=0")
+	}
+
+	// Test 3: s = 0
+	zeroSSig := make([]byte, 64)
+	copy(zeroSSig[0:32], n.Bytes())
+	if err := protocol.ValidateSchnorrEncoding(zeroSSig); err == nil {
+		t.Error("Expected error for s=0")
+	}
+
+	// Test 4: r >= n
+	bigRSig := make([]byte, 64)
+	copy(bigRSig[0:32], n.Bytes())
+	copy(bigRSig[32:], big.NewInt(1).Bytes())
+	if err := protocol.ValidateSchnorrEncoding(bigRSig); err == nil {
+		t.Error("Expected error for r >= n")
+	}
+
+	// Test 5: s >= n
+	bigSSig := make([]byte, 64)
+	copy(bigSSig[0:32], big.NewInt(1).Bytes())
+	copy(bigSSig[32:], n.Bytes())
+	if err := protocol.ValidateSchnorrEncoding(bigSSig); err == nil {
+		t.Error("Expected error for s >= n")
+	}
+}

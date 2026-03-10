@@ -8,6 +8,91 @@ import (
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 )
 
+// SchnorrSigSize is the byte length of a serialised secp256k1 Schnorr
+// signature: 32-byte r (x-coord of R) || 32-byte s.
+const SchnorrSigSize = 64
+
+// SerializeSchnorrSignature encodes a FROST/Schnorr (R, S) pair into the
+// standard 64-byte secp256k1 Schnorr wire format:
+//
+//	bytes  0-31 : x-coordinate of R (big-endian, zero-padded to 32 bytes)
+//	bytes 32-63 : s scalar           (big-endian, zero-padded to 32 bytes)
+//
+// This matches the format used by BIP-340 / libsecp256k1.
+func SerializeSchnorrSignature(sigR *secp256k1.PublicKey, sigS *big.Int) ([]byte, error) {
+	if sigR == nil {
+		return nil, fmt.Errorf("schnorr: R point is nil")
+	}
+	if sigS == nil {
+		return nil, fmt.Errorf("schnorr: S scalar is nil")
+	}
+
+	// r = x-coordinate of R, padded to exactly 32 bytes.
+	rBytes := make([]byte, 32)
+	sigR.X().FillBytes(rBytes)
+
+	// s scalar, padded to exactly 32 bytes.
+	sBytes := make([]byte, 32)
+	sigS.FillBytes(sBytes)
+
+	// Sanity-check encoding lengths (both must be exactly 32 bytes).
+	if len(rBytes) != 32 {
+		return nil, fmt.Errorf("schnorr: r encoding has unexpected length %d (want 32)", len(rBytes))
+	}
+	if len(sBytes) != 32 {
+		return nil, fmt.Errorf("schnorr: s encoding has unexpected length %d (want 32)", len(sBytes))
+	}
+
+	sig := make([]byte, SchnorrSigSize)
+	copy(sig[0:32], rBytes)
+	copy(sig[32:64], sBytes)
+	return sig, nil
+}
+
+// ParseSchnorrSignature decodes a 64-byte secp256k1 Schnorr wire-format
+// signature produced by SerializeSchnorrSignature.  It returns the r
+// x-coordinate (as a *big.Int) and the s scalar.  The caller can recover the
+// full R point from r using the curve if needed; for Schnorr verification
+// under our scheme the full uncompressed R point is carried separately.
+func ParseSchnorrSignature(sig []byte) (r, s *big.Int, err error) {
+	if len(sig) != SchnorrSigSize {
+		return nil, nil, fmt.Errorf("schnorr: invalid signature length %d (want %d)", len(sig), SchnorrSigSize)
+	}
+	r = new(big.Int).SetBytes(sig[0:32])
+	s = new(big.Int).SetBytes(sig[32:64])
+	return r, s, nil
+}
+
+// ValidateSchnorrEncoding checks that a serialised Schnorr signature has the
+// correct 64-byte length and that both the r and s components are within the
+// valid scalar range [1, n-1].  It returns a non-nil error describing the
+// first violation found.
+func ValidateSchnorrEncoding(sig []byte) error {
+	if len(sig) != SchnorrSigSize {
+		return fmt.Errorf("schnorr: invalid signature byte length %d (want %d)", len(sig), SchnorrSigSize)
+	}
+
+	n := secp256k1.S256().N
+
+	r := new(big.Int).SetBytes(sig[0:32])
+	if r.Sign() == 0 {
+		return fmt.Errorf("schnorr: r is zero")
+	}
+	if r.Cmp(n) >= 0 {
+		return fmt.Errorf("schnorr: r (%x…) is >= curve order", sig[0:4])
+	}
+
+	s := new(big.Int).SetBytes(sig[32:64])
+	if s.Sign() == 0 {
+		return fmt.Errorf("schnorr: s is zero")
+	}
+	if s.Cmp(n) >= 0 {
+		return fmt.Errorf("schnorr: s (%x…) is >= curve order", sig[32:36])
+	}
+
+	return nil
+}
+
 // VerifySchnorrSignature verifies a Schnorr signature (R, S) against a public key and message.
 //
 // Schnorr verification equation: s*G = R + e*P

@@ -494,3 +494,205 @@ func TestComputePartialSignatureEdgeCases(t *testing.T) {
 		})
 	}
 }
+
+// TestCombinePartialSignatures tests the CombinePartialSignatures function
+func TestCombinePartialSignatures(t *testing.T) {
+	n := secp256k1.S256().N
+
+	tests := []struct {
+		name    string
+		sa      *big.Int
+		sb      *big.Int
+		wantErr bool
+	}{
+		{
+			name:    "two valid partial signatures",
+			sa:      big.NewInt(12345),
+			sb:      big.NewInt(67890),
+			wantErr: false,
+		},
+		{
+			name:    "nil sa",
+			sa:      nil,
+			sb:      big.NewInt(1),
+			wantErr: true,
+		},
+		{
+			name:    "nil sb",
+			sa:      big.NewInt(1),
+			sb:      nil,
+			wantErr: true,
+		},
+		{
+			name:    "both nil",
+			sa:      nil,
+			sb:      nil,
+			wantErr: true,
+		},
+		{
+			name:    "large values near field order",
+			sa:      new(big.Int).Sub(n, big.NewInt(100)),
+			sb:      new(big.Int).Sub(n, big.NewInt(200)),
+			wantErr: false,
+		},
+		{
+			name:    "zero values",
+			sa:      big.NewInt(0),
+			sb:      big.NewInt(0),
+			wantErr: false,
+		},
+		{
+			name:    "sum exceeds n (tests modulo reduction)",
+			sa:      new(big.Int).Sub(n, big.NewInt(10)),
+			sb:      new(big.Int).Sub(n, big.NewInt(20)),
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, err := CombinePartialSignatures(tt.sa, tt.sb)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("CombinePartialSignatures() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr {
+				if s == nil {
+					t.Errorf("CombinePartialSignatures() returned nil s")
+				}
+				// Verify result is in valid range [0, n-1]
+				if s.Cmp(big.NewInt(0)) < 0 {
+					t.Errorf("s is negative: %v", s)
+				}
+				if s.Cmp(n) >= 0 {
+					t.Errorf("s >= n: s=%v, n=%v", s, n)
+				}
+			}
+		})
+	}
+}
+
+// TestCombinePartialSignaturesModularAddition tests that s = (sa + sb) mod n
+func TestCombinePartialSignaturesModularAddition(t *testing.T) {
+	n := secp256k1.S256().N
+
+	tests := []struct {
+		name string
+		sa   *big.Int
+		sb   *big.Int
+	}{
+		{
+			name: "small values",
+			sa:   big.NewInt(100),
+			sb:   big.NewInt(200),
+		},
+		{
+			name: "values that sum exceeds n",
+			sa:   new(big.Int).Sub(n, big.NewInt(100)),
+			sb:   new(big.Int).Sub(n, big.NewInt(200)),
+		},
+		{
+			name: "one value is zero",
+			sa:   big.NewInt(0),
+			sb:   big.NewInt(12345),
+		},
+		{
+			name: "both values are zero",
+			sa:   big.NewInt(0),
+			sb:   big.NewInt(0),
+		},
+		{
+			name: "values near field order",
+			sa:   new(big.Int).Sub(n, big.NewInt(1)),
+			sb:   big.NewInt(1),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, err := CombinePartialSignatures(tt.sa, tt.sb)
+			if err != nil {
+				t.Fatalf("CombinePartialSignatures() error: %v", err)
+			}
+
+			// Manually compute expected value: s = (sa + sb) mod n
+			expected := new(big.Int).Add(tt.sa, tt.sb)
+			expected.Mod(expected, n)
+
+			if s.Cmp(expected) != 0 {
+				t.Errorf("CombinePartialSignatures() = %v, expected %v", s, expected)
+			}
+		})
+	}
+}
+
+// TestCombinePartialSignaturesCommutative tests that addition is commutative
+func TestCombinePartialSignaturesCommutative(t *testing.T) {
+	sa := big.NewInt(12345)
+	sb := big.NewInt(67890)
+
+	s1, err := CombinePartialSignatures(sa, sb)
+	if err != nil {
+		t.Fatalf("CombinePartialSignatures(sa, sb) error: %v", err)
+	}
+
+	s2, err := CombinePartialSignatures(sb, sa)
+	if err != nil {
+		t.Fatalf("CombinePartialSignatures(sb, sa) error: %v", err)
+	}
+
+	// Results should be equal
+	if s1.Cmp(s2) != 0 {
+		t.Errorf("CombinePartialSignatures is not commutative: s1=%v, s2=%v", s1, s2)
+	}
+}
+
+// TestCombinePartialSignaturesDeterministic tests deterministic computation
+func TestCombinePartialSignaturesDeterministic(t *testing.T) {
+	sa := big.NewInt(12345)
+	sb := big.NewInt(67890)
+
+	// Run twice
+	s1, err := CombinePartialSignatures(sa, sb)
+	if err != nil {
+		t.Fatalf("First CombinePartialSignatures() error: %v", err)
+	}
+
+	s2, err := CombinePartialSignatures(sa, sb)
+	if err != nil {
+		t.Fatalf("Second CombinePartialSignatures() error: %v", err)
+	}
+
+	// Results should be identical
+	if s1.Cmp(s2) != 0 {
+		t.Errorf("CombinePartialSignatures is not deterministic: s1=%v, s2=%v", s1, s2)
+	}
+}
+
+// TestCombinePartialSignaturesIntegration tests end-to-end signing flow
+func TestCombinePartialSignaturesIntegration(t *testing.T) {
+	n := secp256k1.S256().N
+
+	// Generate simple partial signatures for testing
+	sA := big.NewInt(12345)
+	sB := big.NewInt(67890)
+
+	// Combine partial signatures
+	s, err := CombinePartialSignatures(sA, sB)
+	if err != nil {
+		t.Fatalf("CombinePartialSignatures() error: %v", err)
+	}
+
+	// Verify s is in valid range
+	if s.Cmp(big.NewInt(0)) < 0 || s.Cmp(n) >= 0 {
+		t.Errorf("Combined s is not in valid range: s=%v, n=%v", s, n)
+	}
+
+	// Verify the combined s equals (sA + sB) mod n
+	expectedS := new(big.Int).Add(sA, sB)
+	expectedS.Mod(expectedS, n)
+
+	if s.Cmp(expectedS) != 0 {
+		t.Errorf("Combined s=%v does not equal expected (sA+sB) mod n=%v", s, expectedS)
+	}
+}

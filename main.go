@@ -23,6 +23,9 @@ type Config struct {
 	PubKey   string
 	SigR     string
 	SigS     string
+
+	// Layout validation flags
+	ValidateLayout bool
 }
 
 // Default values
@@ -47,6 +50,7 @@ func ParseFlags() (*Config, error) {
 	flag.StringVar(&config.Message, "message", "", "Message to sign (hex encoded)")
 	flag.StringVar(&config.Speed, "speed", DefaultSpeed, "Animation speed: slow, normal, or fast")
 	flag.BoolVar(&config.NoColor, "no-color", false, "Disable ANSI color output")
+	flag.BoolVar(&config.ValidateLayout, "validate-layout", false, "Run layout validation and exit")
 
 	// Verify subcommand flags
 	flag.BoolVar(&config.Verify, "verify", false, "Verify a signature (subcommand)")
@@ -110,6 +114,31 @@ func main() {
 	fmt.Printf("  Message: %s\n", config.Message)
 	fmt.Printf("  Speed: %s\n", config.Speed)
 	fmt.Printf("  NoColor: %v\n", config.NoColor)
+	fmt.Printf("  ValidateLayout: %v\n", config.ValidateLayout)
+
+	// Handle layout validation mode
+	if config.ValidateLayout {
+		fmt.Println("\n=== Layout Validation ===")
+		spec := tui.DefaultLayoutSpec()
+		
+		// Validate terminal size
+		width, height := 80, 24 // Default terminal size for validation
+		sizeResult := tui.ValidateTerminalSize(width, height, spec)
+		fmt.Println(tui.FormatMismatchReport(sizeResult))
+		
+		// Validate layout structure
+		// For now, we'll just validate the spec itself
+		structResult := tui.ValidateLayoutStructure("", spec)
+		fmt.Println(tui.FormatMismatchReport(structResult))
+		
+		// Check if all specs are valid
+		allValid := sizeResult.IsValid && structResult.IsValid
+		if !allValid {
+			os.Exit(1)
+		}
+		fmt.Println("\n✓ All layout validations passed")
+		return
+	}
 
 	// Initialize ceremony
 	ceremony, err := protocol.NewCeremony(config.Fixed, config.Message, config.Speed, config.NoColor)

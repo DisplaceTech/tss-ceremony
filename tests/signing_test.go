@@ -298,6 +298,86 @@ func TestCombinePartialSignaturesNil(t *testing.T) {
 	}
 }
 
+// TestCombinePartialSignaturesZeroValues verifies handling of zero partial signatures
+func TestCombinePartialSignaturesZeroValues(t *testing.T) {
+	// Test with zero sa
+	saZero := big.NewInt(0)
+	sb := big.NewInt(12345)
+	s, err := protocol.CombinePartialSignatures(saZero, sb)
+	if err != nil {
+		t.Fatalf("CombinePartialSignatures(zero, sb) error: %v", err)
+	}
+	expected := new(big.Int).Set(sb)
+	if s.Cmp(expected) != 0 {
+		t.Errorf("CombinePartialSignatures(zero, sb) = %v, want %v", s, expected)
+	}
+
+	// Test with zero sb
+	sa := big.NewInt(67890)
+	sbZero := big.NewInt(0)
+	s, err = protocol.CombinePartialSignatures(sa, sbZero)
+	if err != nil {
+		t.Fatalf("CombinePartialSignatures(sa, zero) error: %v", err)
+	}
+	expected = new(big.Int).Set(sa)
+	if s.Cmp(expected) != 0 {
+		t.Errorf("CombinePartialSignatures(sa, zero) = %v, want %v", s, expected)
+	}
+
+	// Test with both zero
+	s, err = protocol.CombinePartialSignatures(big.NewInt(0), big.NewInt(0))
+	if err != nil {
+		t.Fatalf("CombinePartialSignatures(zero, zero) error: %v", err)
+	}
+	if s.Cmp(big.NewInt(0)) != 0 {
+		t.Errorf("CombinePartialSignatures(zero, zero) = %v, want 0", s)
+	}
+}
+
+// TestCombinePartialSignaturesNearN verifies handling of values near curve order n
+func TestCombinePartialSignaturesNearN(t *testing.T) {
+	n := secp256k1.S256().N
+
+	// Test with values near n (n-1)
+	sa := new(big.Int).Sub(n, big.NewInt(1))
+	sb := new(big.Int).Sub(n, big.NewInt(1))
+	s, err := protocol.CombinePartialSignatures(sa, sb)
+	if err != nil {
+		t.Fatalf("CombinePartialSignatures(near-n, near-n) error: %v", err)
+	}
+	// (n-1) + (n-1) = 2n - 2, mod n = n - 2
+	expected := new(big.Int).Sub(n, big.NewInt(2))
+	if s.Cmp(expected) != 0 {
+		t.Errorf("CombinePartialSignatures(near-n, near-n) = %v, want %v", s, expected)
+	}
+
+	// Test with one value at n-1 and another at 1
+	sa = new(big.Int).Sub(n, big.NewInt(1))
+	sb = big.NewInt(1)
+	s, err = protocol.CombinePartialSignatures(sa, sb)
+	if err != nil {
+		t.Fatalf("CombinePartialSignatures(near-n, 1) error: %v", err)
+	}
+	// (n-1) + 1 = n, mod n = 0
+	expected = big.NewInt(0)
+	if s.Cmp(expected) != 0 {
+		t.Errorf("CombinePartialSignatures(near-n, 1) = %v, want %v", s, expected)
+	}
+
+	// Test with values that sum to exactly n
+	sa = new(big.Int).Sub(n, big.NewInt(5))
+	sb = big.NewInt(5)
+	s, err = protocol.CombinePartialSignatures(sa, sb)
+	if err != nil {
+		t.Fatalf("CombinePartialSignatures(sum-to-n) error: %v", err)
+	}
+	// (n-5) + 5 = n, mod n = 0
+	expected = big.NewInt(0)
+	if s.Cmp(expected) != 0 {
+		t.Errorf("CombinePartialSignatures(sum-to-n) = %v, want %v", s, expected)
+	}
+}
+
 // TestVerifyECDSASignatureValid verifies a valid signature passes
 func TestVerifyECDSASignatureValid(t *testing.T) {
 	privKey, err := secp256k1.GeneratePrivateKey()

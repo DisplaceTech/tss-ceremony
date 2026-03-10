@@ -88,22 +88,42 @@ func (s *TitleScene) Render() string {
 	var builder strings.Builder
 
 	// Styles
-	titleStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("226")). // Yellow
-		MarginBottom(1)
+	var titleStyle lipgloss.Style
+	if s.styles.NoColor {
+		titleStyle = lipgloss.NewStyle().Bold(true).MarginBottom(1)
+	} else {
+		titleStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("226")). // Yellow
+			MarginBottom(1)
+	}
 
-	modeStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("214")). // Blue
-		MarginBottom(1)
+	var modeStyle lipgloss.Style
+	if s.styles.NoColor {
+		modeStyle = lipgloss.NewStyle().Bold(true).MarginBottom(1)
+	} else {
+		modeStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("214")). // Blue
+			MarginBottom(1)
+	}
 
-	messageStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241")). // Gray
-		MarginBottom(2)
+	var messageStyle lipgloss.Style
+	if s.styles.NoColor {
+		messageStyle = lipgloss.NewStyle().MarginBottom(2)
+	} else {
+		messageStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("241")). // Gray
+			MarginBottom(2)
+	}
 
-	separatorStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241"))
+	var separatorStyle lipgloss.Style
+	if s.styles.NoColor {
+		separatorStyle = lipgloss.NewStyle()
+	} else {
+		separatorStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("241"))
+	}
 
 	// Render ASCII art
 	builder.WriteString(asciiArt)
@@ -122,8 +142,13 @@ func (s *TitleScene) Render() string {
 	builder.WriteString(messageStyle.Render(messagePreview) + "\n\n")
 
 	// Navigation hint
-	hintStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("243"))
+	var hintStyle lipgloss.Style
+	if s.styles.NoColor {
+		hintStyle = lipgloss.NewStyle()
+	} else {
+		hintStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("243"))
+	}
 	builder.WriteString(hintStyle.Render("Press Enter to begin the ceremony..."))
 
 	return builder.String()

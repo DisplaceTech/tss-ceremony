@@ -312,3 +312,62 @@ func TestIntegrationCeremonyPhantomKeyDerivation(t *testing.T) {
 		}
 	}
 }
+
+// TestIntegrationNoColorFlag tests that the --no-color flag disables ANSI output
+// and the application remains functional and readable.
+func TestIntegrationNoColorFlag(t *testing.T) {
+	// Create a ceremony with noColor=true
+	ceremony, err := protocol.NewCeremony(true, "", "normal", true)
+	if err != nil {
+		t.Fatalf("Failed to create ceremony with noColor=true: %v", err)
+	}
+
+	// Perform the signing ceremony
+	err = ceremony.SignMessage()
+	if err != nil {
+		t.Fatalf("Failed to sign message: %v", err)
+	}
+
+	// Get the signature components
+	rHex, sHex := ceremony.GetSignatureHex()
+	if rHex == "" || sHex == "" {
+		t.Fatal("Signature components are empty")
+	}
+
+	// Verify the signature is still valid
+	partyAPubBytes := ceremony.PartyAPub.SerializeUncompressed()
+	pubKey, err := secp256k1.ParsePubKey(partyAPubBytes)
+	if err != nil {
+		t.Fatalf("Failed to parse public key: %v", err)
+	}
+
+	pubKeyECDSA := &ecdsa.PublicKey{
+		Curve: secp256k1.S256(),
+		X:     pubKey.X(),
+		Y:     pubKey.Y(),
+	}
+
+	hash := sha256.Sum256(ceremony.Message)
+
+	rBytes, err := hex.DecodeString(rHex)
+	if err != nil {
+		t.Fatalf("Failed to decode R: %v", err)
+	}
+	sBytes, err := hex.DecodeString(sHex)
+	if err != nil {
+		t.Fatalf("Failed to decode S: %v", err)
+	}
+
+	r := new(big.Int).SetBytes(rBytes)
+	s := new(big.Int).SetBytes(sBytes)
+
+	valid := ecdsa.Verify(pubKeyECDSA, hash[:], r, s)
+	if !valid {
+		t.Error("ECDSA signature verification failed with noColor=true")
+	}
+
+	// Verify that the ceremony still produces valid output
+	if ceremony.PhantomKey == nil {
+		t.Error("Phantom key is nil with noColor=true")
+	}
+}

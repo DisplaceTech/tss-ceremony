@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/DisplaceTech/tss-ceremony/protocol"
 	"github.com/DisplaceTech/tss-ceremony/tui/scenes"
 )
 
@@ -43,6 +44,7 @@ type Config struct {
 // Model represents the main TUI model that manages scenes
 type Model struct {
 	config       *scenes.Config
+	ceremony     *protocol.Ceremony
 	currentScene int
 	scenes       []Scene
 	quit         bool
@@ -53,9 +55,10 @@ type Model struct {
 }
 
 // NewModel creates a new TUI model with all scenes wired up
-func NewModel(config *scenes.Config) Model {
+func NewModel(config *scenes.Config, ceremony *protocol.Ceremony) Model {
 	m := Model{
 		config:     config,
+		ceremony:   ceremony,
 		quit:       false,
 		speedDelay: getSpeedDelay(config.Speed),
 		styles:     scenes.NewStyles(config.NoColor),

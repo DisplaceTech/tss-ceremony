@@ -136,72 +136,103 @@ func (s *PublicShareScene) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return s, nil
 }
 
+// renderThreeColumns renders a three-column layout using │ separators.
+// Each column is padded to its fixed width.
+func renderThreeColumns(leftLines, sharedLines, rightLines []string, leftW, sharedW, rightW int) string {
+	padRight := func(s string, w int) string {
+		if len(s) >= w {
+			return s[:w]
+		}
+		return s + strings.Repeat(" ", w-len(s))
+	}
+	rowAt := func(lines []string, i int) string {
+		if i < len(lines) {
+			return lines[i]
+		}
+		return ""
+	}
+	maxLen := len(leftLines)
+	if len(sharedLines) > maxLen {
+		maxLen = len(sharedLines)
+	}
+	if len(rightLines) > maxLen {
+		maxLen = len(rightLines)
+	}
+
+	var sb strings.Builder
+	// Top border
+	sb.WriteString("┌" + strings.Repeat("─", leftW) + "┬" +
+		strings.Repeat("─", sharedW) + "┬" +
+		strings.Repeat("─", rightW) + "┐\n")
+	for i := 0; i < maxLen; i++ {
+		sb.WriteString("│")
+		sb.WriteString(padRight(rowAt(leftLines, i), leftW))
+		sb.WriteString("│")
+		sb.WriteString(padRight(rowAt(sharedLines, i), sharedW))
+		sb.WriteString("│")
+		sb.WriteString(padRight(rowAt(rightLines, i), rightW))
+		sb.WriteString("│\n")
+	}
+	// Bottom border
+	sb.WriteString("└" + strings.Repeat("─", leftW) + "┴" +
+		strings.Repeat("─", sharedW) + "┴" +
+		strings.Repeat("─", rightW) + "┘\n")
+	return sb.String()
+}
+
 // Render renders the scene view
 func (s *PublicShareScene) Render() string {
-	// Build the view
-	var builder strings.Builder
+	const leftW, sharedW, rightW = 24, 32, 24
 
-	// Styles
-	headerStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("226")). // Yellow
-		MarginBottom(1)
-
-	labelStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241")). // Gray
-		MarginRight(2)
-
-	separatorStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241"))
-
-	// Header
-	builder.WriteString(headerStyle.Render("Public Share Computation") + "\n\n")
-
-	// Separator
-	builder.WriteString(separatorStyle.Render(strings.Repeat("─", 50)) + "\n\n")
-
-	// Scalar multiplication animation
-	builder.WriteString(labelStyle.Render("Scalar Multiplication:") + "\n\n")
-
+	// Party A column
+	leftLines := []string{"PARTY A", strings.Repeat("-", leftW)}
 	switch s.phase {
 	case 0:
-		// Computing Party A's public share
-		builder.WriteString(s.renderScalarMult("a", "A", PartyAColor, s.step, 10) + "\n\n")
-		builder.WriteString(s.renderPlaceholder("b", "B", PartyBColor) + "\n\n")
-	case 1:
-		// Computing Party B's public share
-		builder.WriteString(s.renderCompletedScalarMult("a", "A", PartyAColor) + "\n\n")
-		builder.WriteString(s.renderScalarMult("b", "B", PartyBColor, s.step, 10) + "\n\n")
-	case 2:
-		// Exchange animation
-		builder.WriteString(s.renderExchangeAnimation(s.step, 15) + "\n\n")
-	case 3:
-		// Complete
-		builder.WriteString(s.renderCompletedScalarMult("a", "A", PartyAColor) + "\n\n")
-		builder.WriteString(s.renderCompletedScalarMult("b", "B", PartyBColor) + "\n\n")
+		leftLines = append(leftLines, "a = secret", "Computing...")
+	default:
+		leftLines = append(leftLines, "a = secret", "A = a x G", "(done)")
 	}
 
-	// Status
+	// Shared column
+	sharedLines := []string{"SHARED STATE", strings.Repeat("-", sharedW)}
+	switch s.phase {
+	case 0:
+		sharedLines = append(sharedLines, "Waiting for A...")
+	case 1:
+		sharedLines = append(sharedLines, "A computed", "Waiting for B...")
+	case 2:
+		sharedLines = append(sharedLines, "Exchanging...", "A -> B", "B -> A")
+	default:
+		sharedLines = append(sharedLines, "Exchange done", "A = a x G", "B = b x G")
+	}
+
+	// Party B column
+	rightLines := []string{"PARTY B", strings.Repeat("-", rightW)}
+	switch s.phase {
+	case 0:
+		rightLines = append(rightLines, "b = secret", "Waiting...")
+	case 1:
+		rightLines = append(rightLines, "b = secret", "Computing...")
+	default:
+		rightLines = append(rightLines, "b = secret", "B = b x G", "(done)")
+	}
+
+	threeCol := renderThreeColumns(leftLines, sharedLines, rightLines, leftW, sharedW, rightW)
+
 	var status string
-	if s.phase == 0 {
-		status = "Computing Party A's public share: A = a × G"
-	} else if s.phase == 1 {
-		status = "Computing Party B's public share: B = b × G"
-	} else if s.phase == 2 {
+	switch s.phase {
+	case 0:
+		status = "Computing Party A's public share: A = a x G"
+	case 1:
+		status = "Computing Party B's public share: B = b x G"
+	case 2:
 		status = "Exchanging public shares..."
-	} else {
+	default:
 		status = "Public shares exchanged!"
 	}
-	statusStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("243"))
-	builder.WriteString(statusStyle.Render(status) + "\n\n")
 
-	// Navigation hint
-	hintStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("243"))
-	builder.WriteString(hintStyle.Render("Press Enter to continue..."))
-
-	return builder.String()
+	statusStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
+	return threeCol + statusStyle.Render(status) + "\n"
 }
 
 // renderScalarMult renders the scalar multiplication animation

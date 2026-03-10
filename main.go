@@ -96,9 +96,9 @@ func main() {
 		}
 
 		if valid {
-			fmt.Println("Signature verification: VALID")
+			fmt.Println("Valid")
 		} else {
-			fmt.Println("Signature verification: INVALID")
+			fmt.Println("Invalid")
 			os.Exit(1)
 		}
 		return

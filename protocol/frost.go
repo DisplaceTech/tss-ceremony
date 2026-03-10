@@ -243,6 +243,26 @@ func (fs *FROSTSigner) Sign(message []byte) (*FROSTSignature, error) {
 		return nil, fmt.Errorf("failed to aggregate signatures: %w", err)
 	}
 
+	// Validate that the signature components are in standard secp256k1 Schnorr format
+	// R must be a valid secp256k1 point (32-byte x-coordinate)
+	if fs.R == nil {
+		return nil, fmt.Errorf("schnorr: R point is nil")
+	}
+	rBytes := make([]byte, 32)
+	fs.R.X().FillBytes(rBytes)
+	if len(rBytes) != 32 {
+		return nil, fmt.Errorf("schnorr: R x-coordinate encoding has unexpected length %d (want 32)", len(rBytes))
+	}
+
+	// S must be a valid scalar in [1, n-1]
+	n := secp256k1.S256().N
+	if fs.S.Sign() == 0 {
+		return nil, fmt.Errorf("schnorr: S scalar is zero")
+	}
+	if fs.S.Cmp(n) >= 0 {
+		return nil, fmt.Errorf("schnorr: S scalar (%x…) is >= curve order", fs.S.Bytes()[:4])
+	}
+
 	return &FROSTSignature{
 		R: fs.R,
 		S: fs.S,

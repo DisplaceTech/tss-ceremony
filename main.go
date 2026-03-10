@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/DisplaceTech/tss-ceremony/protocol"
 	"github.com/DisplaceTech/tss-ceremony/tui"
+	"github.com/DisplaceTech/tss-ceremony/tui/commands"
 	"github.com/DisplaceTech/tss-ceremony/tui/scenes"
 )
 
@@ -19,10 +20,14 @@ type Config struct {
 	NoColor bool
 
 	// Verify subcommand flags
-	Verify   bool
-	PubKey   string
-	SigR     string
-	SigS     string
+	Verify       bool
+	PubKey       string
+	SigR         string
+	SigS         string
+	PubKeyFile   string
+	SigRFile     string
+	SigSFile     string
+	MessageFile  string
 
 	// Layout validation flags
 	ValidateLayout bool
@@ -57,6 +62,10 @@ func ParseFlags() (*Config, error) {
 	flag.StringVar(&config.PubKey, "pubkey", "", "Public key for verification (hex encoded)")
 	flag.StringVar(&config.SigR, "sig-r", "", "R component of signature (hex encoded)")
 	flag.StringVar(&config.SigS, "sig-s", "", "S component of signature (hex encoded)")
+	flag.StringVar(&config.PubKeyFile, "pubkey-file", "", "File containing public key (hex encoded)")
+	flag.StringVar(&config.SigRFile, "sig-r-file", "", "File containing R component (hex encoded)")
+	flag.StringVar(&config.SigSFile, "sig-s-file", "", "File containing S component (hex encoded)")
+	flag.StringVar(&config.MessageFile, "message-file", "", "File containing message (hex encoded)")
 
 	flag.Parse()
 
@@ -67,17 +76,26 @@ func ParseFlags() (*Config, error) {
 
 	// Validate verify subcommand flags
 	if config.Verify {
-		if config.PubKey == "" {
-			return nil, fmt.Errorf("--verify requires --pubkey")
-		}
-		if config.SigR == "" {
-			return nil, fmt.Errorf("--verify requires --sig-r")
-		}
-		if config.SigS == "" {
-			return nil, fmt.Errorf("--verify requires --sig-s")
-		}
-		if config.Message == "" {
-			return nil, fmt.Errorf("--verify requires --message")
+		// Check if using file-based verification
+		if config.PubKeyFile != "" || config.SigRFile != "" || config.SigSFile != "" || config.MessageFile != "" {
+			// File-based verification requires all file flags
+			if config.PubKeyFile == "" || config.SigRFile == "" || config.SigSFile == "" || config.MessageFile == "" {
+				return nil, fmt.Errorf("--verify with file inputs requires all of: --pubkey-file, --sig-r-file, --sig-s-file, --message-file")
+			}
+		} else if config.PubKey == "" || config.SigR == "" || config.SigS == "" || config.Message == "" {
+			// String-based verification requires all string flags
+			if config.PubKey == "" {
+				return nil, fmt.Errorf("--verify requires --pubkey or --pubkey-file")
+			}
+			if config.SigR == "" {
+				return nil, fmt.Errorf("--verify requires --sig-r or --sig-r-file")
+			}
+			if config.SigS == "" {
+				return nil, fmt.Errorf("--verify requires --sig-s or --sig-s-file")
+			}
+			if config.Message == "" && config.MessageFile == "" {
+				return nil, fmt.Errorf("--verify requires --message or --message-file")
+			}
 		}
 	}
 
@@ -93,7 +111,17 @@ func main() {
 
 	// Handle verify subcommand
 	if config.Verify {
-		valid, err := protocol.VerifySignature(config.PubKey, config.SigR, config.SigS, config.Message)
+		var valid bool
+		var err error
+
+		// Check if using file-based verification
+		if config.PubKeyFile != "" || config.SigRFile != "" || config.SigSFile != "" || config.MessageFile != "" {
+			valid, err = commands.VerifyFromFile(config.PubKeyFile, config.SigRFile, config.SigSFile, config.MessageFile)
+		} else {
+			// Use string-based verification
+			valid, err = protocol.VerifySignature(config.PubKey, config.SigR, config.SigS, config.Message)
+		}
+
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Verification error: %v\n", err)
 			os.Exit(1)

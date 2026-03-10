@@ -77,52 +77,79 @@ func (s *ConfigScene) Render() string {
 	// Styles
 	headerStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("226")). // Yellow
 		MarginBottom(1)
 
 	labelStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241")). // Gray
 		MarginRight(2)
 
 	valueStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("214")). // Blue
 		MarginBottom(1)
 
 	modeStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("226")). // Yellow
 		MarginBottom(2)
 
-	separatorStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241"))
+	separatorStyle := lipgloss.NewStyle()
 
 	// Header
-	builder.WriteString(headerStyle.Render("Protocol Parameters") + "\n\n")
+	if s.styles.NoColor {
+		builder.WriteString(headerStyle.Render("Protocol Parameters") + "\n\n")
+	} else {
+		builder.WriteString(headerStyle.Render("Protocol Parameters") + "\n\n")
+	}
 
 	// Separator
 	builder.WriteString(separatorStyle.Render(strings.Repeat("─", 50)) + "\n\n")
 
 	// Curve name
-	builder.WriteString(labelStyle.Render("Curve:") + "\n")
-	builder.WriteString(valueStyle.Render(curveName) + "\n\n")
+	if s.styles.NoColor {
+		builder.WriteString(labelStyle.Render("Curve:") + "\n")
+		builder.WriteString(valueStyle.Render(curveName) + "\n\n")
+	} else {
+		builder.WriteString(labelStyle.Render("Curve:") + "\n")
+		builder.WriteString(valueStyle.Render(curveName) + "\n\n")
+	}
 
 	// Field order
-	builder.WriteString(labelStyle.Render("Field Order (n):") + "\n")
-	builder.WriteString(valueStyle.Render(fieldOrder) + "\n\n")
+	if s.styles.NoColor {
+		builder.WriteString(labelStyle.Render("Field Order (n):") + "\n")
+		builder.WriteString(valueStyle.Render(fieldOrder) + "\n\n")
+	} else {
+		builder.WriteString(labelStyle.Render("Field Order (n):") + "\n")
+		builder.WriteString(valueStyle.Render(fieldOrder) + "\n\n")
+	}
 
 	// Generator point
-	builder.WriteString(labelStyle.Render("Generator Point (G):") + "\n")
-	builder.WriteString(valueStyle.Render("  Gx: " + generatorX) + "\n")
-	builder.WriteString(valueStyle.Render("  Gy: " + generatorY) + "\n\n")
+	if s.styles.NoColor {
+		builder.WriteString(labelStyle.Render("Generator Point (G):") + "\n")
+		builder.WriteString(valueStyle.Render("  Gx: " + generatorX) + "\n")
+		builder.WriteString(valueStyle.Render("  Gy: " + generatorY) + "\n\n")
+	} else {
+		builder.WriteString(labelStyle.Render("Generator Point (G):") + "\n")
+		builder.WriteString(valueStyle.Render("  Gx: " + generatorX) + "\n")
+		builder.WriteString(valueStyle.Render("  Gy: " + generatorY) + "\n\n")
+	}
 
 	// Separator
-	builder.WriteString(separatorStyle.Render(strings.Repeat("─", 50)) + "\n\n")
+	if s.styles.NoColor {
+		builder.WriteString(separatorStyle.Render(strings.Repeat("─", 50)) + "\n\n")
+	} else {
+		builder.WriteString(separatorStyle.Render(strings.Repeat("─", 50)) + "\n\n")
+	}
 
 	// Ceremony config
-	builder.WriteString(headerStyle.Render("Ceremony Configuration") + "\n\n")
+	if s.styles.NoColor {
+		builder.WriteString(headerStyle.Render("Ceremony Configuration") + "\n\n")
+	} else {
+		builder.WriteString(headerStyle.Render("Ceremony Configuration") + "\n\n")
+	}
 
 	// Mode
-	builder.WriteString(modeStyle.Render("Mode: " + modeText) + "\n\n")
+	if s.styles.NoColor {
+		builder.WriteString(modeStyle.Render("Mode: " + modeText) + "\n\n")
+	} else {
+		builder.WriteString(modeStyle.Render("Mode: " + modeText) + "\n\n")
+	}
 
 	// Message
 	var messageText string
@@ -131,17 +158,32 @@ func (s *ConfigScene) Render() string {
 	} else {
 		messageText = "(none)"
 	}
-	builder.WriteString(labelStyle.Render("Message:") + "\n")
-	builder.WriteString(valueStyle.Render(messageText) + "\n\n")
+	if s.styles.NoColor {
+		builder.WriteString(labelStyle.Render("Message:") + "\n")
+		builder.WriteString(valueStyle.Render(messageText) + "\n\n")
+	} else {
+		builder.WriteString(labelStyle.Render("Message:") + "\n")
+		builder.WriteString(valueStyle.Render(messageText) + "\n\n")
+	}
 
 	// Speed
-	builder.WriteString(labelStyle.Render("Animation Speed:") + "\n")
-	builder.WriteString(valueStyle.Render(s.config.Speed) + "\n\n")
+	if s.styles.NoColor {
+		builder.WriteString(labelStyle.Render("Animation Speed:") + "\n")
+		builder.WriteString(valueStyle.Render(s.config.Speed) + "\n\n")
+	} else {
+		builder.WriteString(labelStyle.Render("Animation Speed:") + "\n")
+		builder.WriteString(valueStyle.Render(s.config.Speed) + "\n\n")
+	}
 
 	// Navigation hint
-	hintStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("243"))
-	builder.WriteString(hintStyle.Render("Press Enter to continue..."))
+	if s.styles.NoColor {
+		hintStyle := lipgloss.NewStyle()
+		builder.WriteString(hintStyle.Render("Press Enter to continue..."))
+	} else {
+		hintStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("243"))
+		builder.WriteString(hintStyle.Render("Press Enter to continue..."))
+	}
 
 	return builder.String()
 }

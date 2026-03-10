@@ -52,7 +52,7 @@ func TestLayoutVisualRegression_HeaderFooter(t *testing.T) {
 		NoColor:   true,
 	}
 
-	model := tui.NewModel(config)
+	model := tui.NewModel(config, nil)
 	view := model.View()
 
 	if !strings.Contains(view, "Scene") || !strings.Contains(view, "/") {
@@ -77,7 +77,7 @@ func TestLayoutVisualRegression_BorderRendering(t *testing.T) {
 		NoColor:   true,
 	}
 
-	model := tui.NewModel(config)
+	model := tui.NewModel(config, nil)
 	view := model.View()
 
 	// The narrator panel uses rounded borders; check for any box-drawing characters
@@ -100,7 +100,7 @@ func TestLayoutVisualRegression_NarratorPanel(t *testing.T) {
 		NoColor:   true,
 	}
 
-	model := tui.NewModel(config)
+	model := tui.NewModel(config, nil)
 	view := model.View()
 
 	if !strings.Contains(view, "Narrator:") {
@@ -167,7 +167,7 @@ func TestLayoutVisualRegression_LayoutStructure(t *testing.T) {
 		NoColor:   true,
 	}
 
-	model := tui.NewModel(config)
+	model := tui.NewModel(config, nil)
 	view := model.View()
 
 	spec := tui.DefaultLayoutSpec()
@@ -188,7 +188,7 @@ func TestLayoutVisualRegression_ColorStyling(t *testing.T) {
 	}
 
 	stylesWithColor := scenes.NewStyles(configWithColor.NoColor)
-	modelWithColor := tui.NewModel(configWithColor)
+	modelWithColor := tui.NewModel(configWithColor, nil)
 	viewWithColor := modelWithColor.View()
 
 	configNoColor := &scenes.Config{
@@ -199,7 +199,7 @@ func TestLayoutVisualRegression_ColorStyling(t *testing.T) {
 	}
 
 	stylesNoColor := scenes.NewStyles(configNoColor.NoColor)
-	modelNoColor := tui.NewModel(configNoColor)
+	modelNoColor := tui.NewModel(configNoColor, nil)
 	viewNoColor := modelNoColor.View()
 
 	if viewWithColor == "" {
@@ -240,7 +240,7 @@ func TestLayoutVisualRegression_SceneTransitions(t *testing.T) {
 		NoColor:   true,
 	}
 
-	model := tui.NewModel(config)
+	model := tui.NewModel(config, nil)
 	initialScene := model.GetCurrentScene()
 
 	// Scene 0 is the initial scene; just verify model is valid
@@ -263,7 +263,7 @@ func TestLayoutVisualRegression_NarratorContent(t *testing.T) {
 		NoColor:   true,
 	}
 
-	model := tui.NewModel(config)
+	model := tui.NewModel(config, nil)
 	view := model.View()
 
 	narratorIndex := strings.Index(view, "Narrator:")

@@ -13,7 +13,7 @@ func testConfig() *scenes.Config {
 }
 
 func TestBonusSceneIntegration(t *testing.T) {
-	model := NewModel(testConfig())
+	model := NewModel(testConfig(), nil)
 
 	// Verify we have all 20 scenes (0-19)
 	if model.GetSceneCount() != 20 {
@@ -52,7 +52,7 @@ func TestBonusSceneIntegration(t *testing.T) {
 
 // TestSceneNavigation verifies that navigation between bonus scenes works correctly.
 func TestSceneNavigation(t *testing.T) {
-	model := NewModel(testConfig())
+	model := NewModel(testConfig(), nil)
 
 	// Start at scene 0
 	if model.GetCurrentScene() != 0 {

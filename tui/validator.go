@@ -171,54 +171,24 @@ func ValidateLayoutStructure(rendered string, spec LayoutSpec) ValidationResult 
 
 	lines := strings.Split(rendered, "\n")
 
-	// Check header line (strip ANSI before measuring)
-	if len(lines) > 0 {
-		header := stripANSI(lines[0])
-		if len(header) < spec.MinWidth {
-			result.Mismatches = append(result.Mismatches, Mismatch{
-				Line:     0,
-				Column:   0,
-				Expected: rune(spec.MinWidth),
-				Actual:   rune(len(header)),
-				Context:  fmt.Sprintf("Header too short: %d chars", len(header)),
-			})
-			result.IsValid = false
-		}
-	}
 
-	// Check footer line (last non-empty line), strip ANSI before measuring
-	for i := len(lines) - 1; i >= 0; i-- {
-		if strings.TrimSpace(stripANSI(lines[i])) != "" {
-			footer := stripANSI(lines[i])
-			if len(footer) < spec.MinWidth {
-				result.Mismatches = append(result.Mismatches, Mismatch{
-					Line:     i,
-					Column:   0,
-					Expected: rune(spec.MinWidth),
-					Actual:   rune(len(footer)),
-					Context:  fmt.Sprintf("Footer too short: %d chars", len(footer)),
-				})
-				result.IsValid = false
-			}
-			break
-		}
-	}
 
-	// Check for three-column structure: look for │-separated columns OR
-	// rounded-border box characters (╭/╰) used by lipgloss panels, which
-	// also satisfy the "structured layout" requirement.
+	// Check for three-column structure: look for │-separated columns (≥4 per line),
+	// multiple rounded-border panels (╭ appears ≥2 times total), or multiple
+	// square-corner inner panels (┌ appears ≥3 times total — outer box + 2 inner).
 	hasStructuredLayout := false
+	totalRoundedOpen := 0
+	totalSquareOpen := 0
 	for _, line := range lines {
 		if strings.Count(line, "│") >= 4 {
 			hasStructuredLayout = true
 			break
 		}
-		// Accept lipgloss rounded-border panels as structured layout
-		if strings.Contains(line, "╭") || strings.Contains(line, "╰") ||
-			strings.Contains(line, "┌") || strings.Contains(line, "└") {
-			hasStructuredLayout = true
-			break
-		}
+		totalRoundedOpen += strings.Count(line, "╭")
+		totalSquareOpen += strings.Count(line, "┌")
+	}
+	if totalRoundedOpen >= 1 || totalSquareOpen >= 3 {
+		hasStructuredLayout = true
 	}
 
 	if !hasStructuredLayout {

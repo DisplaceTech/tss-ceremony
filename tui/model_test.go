@@ -154,7 +154,7 @@ func TestFrostSideBySideScene(t *testing.T) {
 
 // TestFrostAnimatedScene verifies the FROST animated scene (Scene 18) functionality.
 func TestFrostAnimatedScene(t *testing.T) {
-	scene := scenes.NewFrostAnimatedScene()
+	scene := scenes.NewFrostAnimatedScene(nil)
 
 	// Verify initial state
 	if scene == nil {
@@ -215,7 +215,7 @@ func TestSceneInit(t *testing.T) {
 		{"Reveal", scenes.NewRevealScene()},
 		{"SchnorrCompare", scenes.NewSchnorrCompareScene()},
 		{"FrostSideBySide", scenes.NewScene()},
-		{"FrostAnimated", scenes.NewFrostAnimatedScene()},
+		{"FrostAnimated", scenes.NewFrostAnimatedScene(nil)},
 		{"WhyBoth", scenes.NewWhyBothScene()},
 	}
 
@@ -237,7 +237,7 @@ func TestSceneUpdate(t *testing.T) {
 		{"Reveal", scenes.NewRevealScene()},
 		{"SchnorrCompare", scenes.NewSchnorrCompareScene()},
 		{"FrostSideBySide", scenes.NewScene()},
-		{"FrostAnimated", scenes.NewFrostAnimatedScene()},
+		{"FrostAnimated", scenes.NewFrostAnimatedScene(nil)},
 		{"WhyBoth", scenes.NewWhyBothScene()},
 	}
 

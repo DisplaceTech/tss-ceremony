@@ -1,7 +1,6 @@
 package protocol
 
 import (
-	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
 	"math/big"
@@ -15,6 +14,10 @@ import (
 // the order of the secp256k1 curve. This scalar is used as a nonce share in
 // the DKLS signing protocol.
 //
+// When the protocol package is in deterministic (fixed) mode the output is
+// derived from the seeded counter-based hash source so that repeated calls
+// produce the same sequence of values.
+//
 // Returns:
 //   - A valid secp256k1 scalar
 //   - Error if random generation fails
@@ -22,7 +25,7 @@ func GenerateNonceShare() (*big.Int, error) {
 	n := secp256k1.S256().N
 
 	// Generate random scalar in [1, n-1]
-	k, err := rand.Int(rand.Reader, new(big.Int).Sub(n, big.NewInt(1)))
+	k, err := randInt(new(big.Int).Sub(n, big.NewInt(1)))
 	if err != nil {
 		return nil, err
 	}

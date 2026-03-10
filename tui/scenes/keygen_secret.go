@@ -42,6 +42,9 @@ func (s *SecretGenScene) Init() tea.Cmd {
 	s.phase = 0
 	s.partyAIndex = 0
 	s.partyBIndex = 0
+	if s.config.FixedMode {
+		ResetFixedCounter()
+	}
 	return tea.Tick(s.duration, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
@@ -83,10 +86,9 @@ func (s *SecretGenScene) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return s, nil
 }
 
-// getRandomHexChar returns a random hex character
+// getRandomHexChar returns a random hex character (deterministic in fixed mode)
 func (s *SecretGenScene) getRandomHexChar() rune {
-	hexChars := "0123456789abcdef"
-	return rune(hexChars[getRandomInt(16)])
+	return pickHexChar(s.config.FixedMode)
 }
 
 // Render renders the scene view

@@ -1,6 +1,9 @@
 package scenes
 
-import "time"
+import (
+	"sync/atomic"
+	"time"
+)
 
 // Config holds the TUI configuration
 type Config struct {
@@ -8,6 +11,18 @@ type Config struct {
 	Message   string
 	Speed     string
 	NoColor   bool
+}
+
+// fixedModeCounter is a package-level atomic counter used to produce
+// deterministic "random" values when fixed mode is active.  It is
+// reset to 0 whenever ResetFixedCounter is called (e.g. at scene init).
+var fixedModeCounter uint64
+
+// ResetFixedCounter resets the deterministic animation counter to zero.
+// Call this at the start of each scene Init() when fixed mode is active so
+// that every run produces the same sequence of animation frames.
+func ResetFixedCounter() {
+	atomic.StoreUint64(&fixedModeCounter, 0)
 }
 
 // Styles holds styling information for the TUI
@@ -117,4 +132,39 @@ func getRandomHexChar() rune {
 func getRandomInt(max int) int {
 	// Simple pseudo-random for animation
 	return int(time.Now().Nanosecond()) % max
+}
+
+// getDeterministicHexChar returns a deterministic hex character derived from
+// the package-level counter.  The counter is atomically incremented on each
+// call so successive calls produce different (but reproducible) characters.
+func getDeterministicHexChar() rune {
+	hexChars := "0123456789abcdef"
+	idx := atomic.AddUint64(&fixedModeCounter, 1) - 1
+	return rune(hexChars[idx%16])
+}
+
+// getDeterministicInt returns a deterministic integer in [0, max) derived
+// from the package-level counter.
+func getDeterministicInt(max int) int {
+	idx := atomic.AddUint64(&fixedModeCounter, 1) - 1
+	return int(idx) % max
+}
+
+// pickHexChar returns a hex character that is deterministic when fixedMode is
+// true, and random otherwise.  Scenes should call this instead of
+// getRandomHexChar directly so that fixed mode propagates.
+func pickHexChar(fixedMode bool) rune {
+	if fixedMode {
+		return getDeterministicHexChar()
+	}
+	return getRandomHexChar()
+}
+
+// pickInt returns an integer in [0, max) that is deterministic when
+// fixedMode is true, and random otherwise.
+func pickInt(fixedMode bool, max int) int {
+	if fixedMode {
+		return getDeterministicInt(max)
+	}
+	return getRandomInt(max)
 }

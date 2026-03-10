@@ -1,7 +1,6 @@
 package protocol
 
 import (
-	"crypto/rand"
 	"math/big"
 
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -67,7 +66,7 @@ func GenerateOTInputs() ([2]*big.Int, error) {
 	inputs := [2]*big.Int{}
 
 	for i := 0; i < 2; i++ {
-		val, err := rand.Int(rand.Reader, new(big.Int).Sub(n, big.NewInt(1)))
+		val, err := randInt(new(big.Int).Sub(n, big.NewInt(1)))
 		if err != nil {
 			return [2]*big.Int{}, err
 		}

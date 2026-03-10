@@ -11,13 +11,15 @@ import (
 // It animates the FROST signing process step-by-step, reusing animation components
 // from the main ceremony to show how FROST collapses complexity.
 type FrostAnimatedScene struct {
+	config      *Config
 	currentStep int
 	maxSteps    int
 }
 
 // NewFrostAnimatedScene creates a new FROST animated scene
-func NewFrostAnimatedScene() *FrostAnimatedScene {
+func NewFrostAnimatedScene(config *Config) *FrostAnimatedScene {
 	return &FrostAnimatedScene{
+		config:      config,
 		currentStep: 0,
 		maxSteps:    5,
 	}
@@ -25,6 +27,10 @@ func NewFrostAnimatedScene() *FrostAnimatedScene {
 
 // Init initializes the scene
 func (s *FrostAnimatedScene) Init() tea.Cmd {
+	if s.config != nil && s.config.FixedMode {
+		ResetFixedCounter()
+		s.currentStep = 0
+	}
 	return nil
 }
 

@@ -137,7 +137,7 @@ func (m Model) createScenes() []Scene {
 	s[15] = scenes.NewRevealScene()
 	s[16] = scenes.NewSchnorrCompareScene()
 	s[17] = scenes.NewScene()
-	s[18] = scenes.NewFrostAnimatedScene()
+	s[18] = scenes.NewFrostAnimatedScene(m.config)
 	s[19] = scenes.NewWhyBothScene()
 
 	return s

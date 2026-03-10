@@ -1,7 +1,6 @@
 package protocol
 
 import (
-	"crypto/rand"
 	"math/big"
 
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
@@ -35,7 +34,7 @@ func MultiplicativeToAdditive(ka, kb *big.Int) (alpha, beta *big.Int, err error)
 	product.Mod(product, n)
 
 	// Generate a random beta in [1, n-1]
-	beta, err = rand.Int(rand.Reader, new(big.Int).Sub(n, big.NewInt(1)))
+	beta, err = randInt(new(big.Int).Sub(n, big.NewInt(1)))
 	if err != nil {
 		return nil, nil, err
 	}

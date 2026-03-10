@@ -388,7 +388,16 @@ func ComputePublicShare(secret []byte) (*secp256k1.PublicKey, error) {
 	if privKey == nil {
 		return nil, fmt.Errorf("invalid secret: out of range")
 	}
-	return privKey.PubKey(), nil
+	pubKey := privKey.PubKey()
+	
+	// Validate the public key point is on the secp256k1 curve
+	x := pubKey.X().Bytes()
+	y := pubKey.Y().Bytes()
+	if !IsOnCurve(x, y) {
+		return nil, fmt.Errorf("computed public key point is not on secp256k1 curve")
+	}
+	
+	return pubKey, nil
 }
 
 // CombinePublicKeys combines two public keys by adding their points on the curve
@@ -404,10 +413,14 @@ func CombinePublicKeys(publicA, publicB *secp256k1.PublicKey) (*secp256k1.Public
 		publicA.X(), publicA.Y(),
 		publicB.X(), publicB.Y(),
 	)
-	// Create uncompressed public key bytes (0x04 prefix + x + y)
-	// Pad x and y to exactly 32 bytes each to handle leading-zero coordinates.
+	// Validate the combined point is on the secp256k1 curve
 	xBytes := x.Bytes()
 	yBytes := y.Bytes()
+	if !IsOnCurve(xBytes, yBytes) {
+		return nil, fmt.Errorf("combined public key point is not on secp256k1 curve")
+	}
+	// Create uncompressed public key bytes (0x04 prefix + x + y)
+	// Pad x and y to exactly 32 bytes each to handle leading-zero coordinates.
 	pubKeyBytes := make([]byte, 65)
 	pubKeyBytes[0] = 0x04
 	copy(pubKeyBytes[1+32-len(xBytes):33], xBytes)

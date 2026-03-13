@@ -440,10 +440,8 @@ func (m *Model) renderTrace() string {
 	b.WriteString(m.s.dim.Render("  OpenSSL needs DER-encoded inputs. Here's how our values map:") + "\n")
 	b.WriteString("\n")
 
-	// Message encoding
-	b.WriteString(m.s.dim.Render("  message (hex):") + "\n")
-	b.WriteString("    " + m.s.green.Render(fmtHex(m.data.MessageHex)) + "\n")
-	b.WriteString(m.s.dim.Render(`    = "`+m.data.MessageText+`"`) + "\n")
+	// Message
+	b.WriteString(m.s.dim.Render("  message: ") + m.s.green.Render(`"`+m.data.MessageText+`"`) + "\n")
 
 	if m.phase <= phaseDERMsg {
 		return b.String()
@@ -499,11 +497,11 @@ func (m *Model) renderColorizedCmd() string {
 	// Signature DER: find r and s within the DER hex
 	colorSig := m.colorizeSigDER(d.SigDERHex)
 
-	// Message hex
-	colorMsg := m.s.green.Render(d.MessageHex)
+	// Message (plaintext)
+	colorMsg := m.s.green.Render(d.MessageText)
 
 	var b strings.Builder
-	b.WriteString(dim.Render("  echo '") + colorMsg + dim.Render("' | xxd -r -p | \\") + "\n")
+	b.WriteString(dim.Render("  echo -n '") + colorMsg + dim.Render("' | \\") + "\n")
 	b.WriteString(dim.Render("      openssl dgst -sha256 \\") + "\n")
 	b.WriteString(dim.Render("      -verify <(echo '") + colorPub + dim.Render("' | \\") + "\n")
 	b.WriteString(dim.Render("        xxd -r -p | openssl ec -pubin -inform DER 2>/dev/null) \\") + "\n")

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/hex"
 	"flag"
 	"fmt"
 	"os"
@@ -51,7 +50,7 @@ func ParseFlags() (*Config, error) {
 	}
 
 	flag.BoolVar(&config.Fixed, "fixed", false, "Use fixed seed for deterministic runs")
-	flag.StringVar(&config.Message, "message", "", "Message to sign (default: Hello, threshold signatures!)")
+	flag.StringVar(&config.Message, "message", "", "Message to sign (default: Hello, threshold signatures)")
 	flag.StringVar(&config.Speed, "speed", DefaultSpeed, "Animation speed: slow, normal, or fast")
 	flag.BoolVar(&config.NoColor, "no-color", false, "Disable ANSI color output")
 
@@ -244,7 +243,6 @@ func buildCeremonyData(c *protocol.Ceremony) *scenes.CeremonyData {
 	data.PartyASecretHex = fmt.Sprintf("%064x", c.PartyAKey.Serialize())
 	data.PartyBSecretHex = fmt.Sprintf("%064x", c.PartyBKey.Serialize())
 	data.OpenSSLVerify = c.GetOpenSSLVerifyCmd()
-	data.MessageHex = hex.EncodeToString(c.Message)
 	data.PubKeyDERHex = c.GetPubKeyDERHex()
 	data.SigDERHex = c.GetSignatureDERHex()
 	if c.PhantomKey != nil {

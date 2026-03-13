@@ -80,7 +80,7 @@ func NewCeremony(fixedMode bool, message string, speed string, noColor bool) (*C
 	if message != "" {
 		ceremony.Message = []byte(message)
 	} else {
-		ceremony.Message = []byte("Hello, threshold signatures!")
+		ceremony.Message = []byte("Hello, threshold signatures")
 	}
 
 	// Generate keys
@@ -175,13 +175,13 @@ func (c *Ceremony) GetSignatureDERHex() string {
 func (c *Ceremony) GetOpenSSLVerifyCmd() string {
 	pubDER := c.GetPubKeyDERHex()
 	sigDER := c.GetSignatureDERHex()
-	msgHex := hex.EncodeToString(c.Message)
+	msg := string(c.Message)
 	if pubDER == "" || sigDER == "" {
 		return ""
 	}
 	return fmt.Sprintf(
-		"echo '%s' | xxd -r -p | \\\n    openssl dgst -sha256 \\\n    -verify <(echo '%s' | \\\n      xxd -r -p | openssl ec -pubin -inform DER 2>/dev/null) \\\n    -signature <(echo '%s' | xxd -r -p)",
-		msgHex, pubDER, sigDER,
+		"echo -n '%s' | \\\n    openssl dgst -sha256 \\\n    -verify <(echo '%s' | \\\n      xxd -r -p | openssl ec -pubin -inform DER 2>/dev/null) \\\n    -signature <(echo '%s' | xxd -r -p)",
+		msg, pubDER, sigDER,
 	)
 }
 

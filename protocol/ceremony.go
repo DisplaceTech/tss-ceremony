@@ -138,7 +138,7 @@ func (c *Ceremony) GetSignatureHex() (string, string) {
 	if c.SignatureR == nil || c.SignatureS == nil {
 		return "", ""
 	}
-	return hex.EncodeToString(c.SignatureR.Bytes()), hex.EncodeToString(c.SignatureS.Bytes())
+	return fmt.Sprintf("%064x", c.SignatureR), fmt.Sprintf("%064x", c.SignatureS)
 }
 
 // GetSpeedDelay returns the delay multiplier based on speed setting

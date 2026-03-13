@@ -196,9 +196,9 @@ func buildCeremonyData(c *protocol.Ceremony) *scenes.CeremonyData {
 
 	if c.SigningResult != nil {
 		sr := c.SigningResult
-		data.MessageHash = fmt.Sprintf("%x", sr.Hash)
-		data.NonceAHex = fmt.Sprintf("%x", sr.NonceA)
-		data.NonceBHex = fmt.Sprintf("%x", sr.NonceB)
+		data.MessageHash = fmt.Sprintf("%064x", sr.Hash)
+		data.NonceAHex = fmt.Sprintf("%064x", sr.NonceA)
+		data.NonceBHex = fmt.Sprintf("%064x", sr.NonceB)
 		if sr.NonceAPub != nil {
 			data.NonceAPubHex = fmt.Sprintf("%x", sr.NonceAPub.SerializeCompressed())
 		}
@@ -209,34 +209,34 @@ func buildCeremonyData(c *protocol.Ceremony) *scenes.CeremonyData {
 			data.CombinedRPubHex = fmt.Sprintf("%x", sr.CombinedR.SerializeCompressed())
 		}
 		if sr.R != nil {
-			data.RHex = fmt.Sprintf("%x", sr.R)
+			data.RHex = fmt.Sprintf("%064x", sr.R)
 		}
 		if sr.OTInputs[0] != nil {
-			data.OTInput0Hex = fmt.Sprintf("%x", sr.OTInputs[0])
+			data.OTInput0Hex = fmt.Sprintf("%064x", sr.OTInputs[0])
 		}
 		if sr.OTInputs[1] != nil {
-			data.OTInput1Hex = fmt.Sprintf("%x", sr.OTInputs[1])
+			data.OTInput1Hex = fmt.Sprintf("%064x", sr.OTInputs[1])
 		}
 		data.OTChoiceBit = sr.OTChoice
 		if sr.OTOutput != nil {
-			data.OTOutputHex = fmt.Sprintf("%x", sr.OTOutput)
+			data.OTOutputHex = fmt.Sprintf("%064x", sr.OTOutput)
 		}
 		if sr.Alpha != nil {
-			data.AlphaHex = fmt.Sprintf("%x", sr.Alpha)
+			data.AlphaHex = fmt.Sprintf("%064x", sr.Alpha)
 		}
 		if sr.Beta != nil {
-			data.BetaHex = fmt.Sprintf("%x", sr.Beta)
+			data.BetaHex = fmt.Sprintf("%064x", sr.Beta)
 		}
 		if sr.PartialSigA != nil {
-			data.PartialSigAHex = fmt.Sprintf("%x", sr.PartialSigA)
+			data.PartialSigAHex = fmt.Sprintf("%064x", sr.PartialSigA)
 		}
 		if sr.PartialSigB != nil {
-			data.PartialSigBHex = fmt.Sprintf("%x", sr.PartialSigB)
+			data.PartialSigBHex = fmt.Sprintf("%064x", sr.PartialSigB)
 		}
 	}
 
-	data.PartyASecretHex = fmt.Sprintf("%x", c.PartyAKey.Serialize())
-	data.PartyBSecretHex = fmt.Sprintf("%x", c.PartyBKey.Serialize())
+	data.PartyASecretHex = fmt.Sprintf("%064x", c.PartyAKey.Serialize())
+	data.PartyBSecretHex = fmt.Sprintf("%064x", c.PartyBKey.Serialize())
 
 	return data
 }

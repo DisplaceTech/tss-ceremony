@@ -284,14 +284,14 @@ func (m *Model) renderTrace() string {
 		return b.String()
 	}
 
-	b.WriteString(m.s.cyan.Render("  A") + m.s.dim.Render(" = a·G") + "\n")
+	b.WriteString(m.s.cyan.Render("  A") + m.s.dim.Render(" = a·G") + m.s.dim.Render("  Party A public") + "\n")
 	b.WriteString("    " + m.animHex(phasePubA, m.data.PartyAPubHex) + "\n")
 
 	if m.phase <= phasePubA {
 		return b.String()
 	}
 
-	b.WriteString(m.s.magenta.Render("  B") + m.s.dim.Render(" = b·G") + "\n")
+	b.WriteString(m.s.magenta.Render("  B") + m.s.dim.Render(" = b·G") + m.s.dim.Render("  Party B public") + "\n")
 	b.WriteString("    " + m.animHex(phasePubB, m.data.PartyBPubHex) + "\n")
 
 	if m.phase <= phasePubB {
@@ -368,7 +368,10 @@ func (m *Model) renderTrace() string {
 
 	// === MtA ===
 	b.WriteString("\n" + m.section("Multiplicative to Additive") + "\n")
-	b.WriteString(m.s.dim.Render("  α + β ≡ k_a · k_b  (mod n)") + "\n")
+	b.WriteString(m.s.dim.Render("  product = k_a · k_b mod n") + "\n")
+	b.WriteString(m.s.dim.Render("  β = random scalar in [1, n-1]") + "\n")
+	b.WriteString(m.s.dim.Render("  α = product - β mod n") + "\n")
+	b.WriteString(m.s.dim.Render("  so α + β ≡ k_a · k_b  (mod n)") + "\n")
 	b.WriteString(m.s.cyan.Render("  α ") + fmtHex(m.data.AlphaHex) + "\n")
 	b.WriteString(m.s.magenta.Render("  β ") + fmtHex(m.data.BetaHex) + "\n")
 

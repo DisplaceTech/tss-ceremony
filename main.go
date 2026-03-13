@@ -200,13 +200,13 @@ func buildCeremonyData(c *protocol.Ceremony) *scenes.CeremonyData {
 		data.NonceAHex = fmt.Sprintf("%064x", sr.NonceA)
 		data.NonceBHex = fmt.Sprintf("%064x", sr.NonceB)
 		if sr.NonceAPub != nil {
-			data.NonceAPubHex = fmt.Sprintf("%x", sr.NonceAPub.SerializeCompressed())
+			data.NonceAPubHex = fmt.Sprintf("%x", sr.NonceAPub.SerializeCompressed()[1:])
 		}
 		if sr.NonceBPub != nil {
-			data.NonceBPubHex = fmt.Sprintf("%x", sr.NonceBPub.SerializeCompressed())
+			data.NonceBPubHex = fmt.Sprintf("%x", sr.NonceBPub.SerializeCompressed()[1:])
 		}
 		if sr.CombinedR != nil {
-			data.CombinedRPubHex = fmt.Sprintf("%x", sr.CombinedR.SerializeCompressed())
+			data.CombinedRPubHex = fmt.Sprintf("%x", sr.CombinedR.SerializeCompressed()[1:])
 		}
 		if sr.R != nil {
 			data.RHex = fmt.Sprintf("%064x", sr.R)

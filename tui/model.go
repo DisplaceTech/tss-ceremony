@@ -284,14 +284,14 @@ func (m *Model) renderTrace() string {
 		return b.String()
 	}
 
-	b.WriteString(m.s.cyan.Render("  A") + m.s.dim.Render(" = a·G") + m.s.dim.Render("  Party A public") + "\n")
+	b.WriteString(m.s.cyan.Render("  A") + m.s.dim.Render(" = a·G  ") + m.s.dim.Render("Party A public") + "\n")
 	b.WriteString("    " + m.animHex(phasePubA, m.data.PartyAPubHex) + "\n")
 
 	if m.phase <= phasePubA {
 		return b.String()
 	}
 
-	b.WriteString(m.s.magenta.Render("  B") + m.s.dim.Render(" = b·G") + m.s.dim.Render("  Party B public") + "\n")
+	b.WriteString(m.s.magenta.Render("  B") + m.s.dim.Render(" = b·G  ") + m.s.dim.Render("Party B public") + "\n")
 	b.WriteString("    " + m.animHex(phasePubB, m.data.PartyBPubHex) + "\n")
 
 	if m.phase <= phasePubB {
@@ -323,13 +323,15 @@ func (m *Model) renderTrace() string {
 
 	// === Nonces ===
 	b.WriteString("\n" + m.section("Nonces") + "\n")
-	b.WriteString(m.s.cyan.Render("  k_a ") + m.animHex(phaseNonceA, m.data.NonceAHex) + "\n")
+	b.WriteString(m.s.cyan.Render("  k_a ") + m.animHex(phaseNonceA, m.data.NonceAHex))
+	b.WriteString(m.s.dim.Render("  random") + "\n")
 
 	if m.phase <= phaseNonceA {
 		return b.String()
 	}
 
-	b.WriteString(m.s.magenta.Render("  k_b ") + m.animHex(phaseNonceB, m.data.NonceBHex) + "\n")
+	b.WriteString(m.s.magenta.Render("  k_b ") + m.animHex(phaseNonceB, m.data.NonceBHex))
+	b.WriteString(m.s.dim.Render("  random") + "\n")
 
 	if m.phase <= phaseNonceB {
 		return b.String()
@@ -356,11 +358,15 @@ func (m *Model) renderTrace() string {
 	// === Oblivious Transfer ===
 	b.WriteString("\n" + m.section("Oblivious Transfer") + "\n")
 	b.WriteString(m.s.dim.Render("  sender:   ") +
-		fmt.Sprintf("x₀ = %s", truncHex(m.data.OTInput0Hex, 16)) + "\n")
+		fmt.Sprintf("x₀ = %s", truncHex(m.data.OTInput0Hex, 16)) +
+		m.s.dim.Render("  random") + "\n")
 	b.WriteString(m.s.dim.Render("            ") +
-		fmt.Sprintf("x₁ = %s", truncHex(m.data.OTInput1Hex, 16)) + "\n")
+		fmt.Sprintf("x₁ = %s", truncHex(m.data.OTInput1Hex, 16)) +
+		m.s.dim.Render("  random") + "\n")
 	b.WriteString(m.s.dim.Render("  receiver: ") +
-		fmt.Sprintf("c  = %d    x_c = %s", m.data.OTChoiceBit, truncHex(m.data.OTOutputHex, 16)) + "\n")
+		fmt.Sprintf("c  = %d", m.data.OTChoiceBit) + "\n")
+	b.WriteString(m.s.dim.Render("            ") +
+		fmt.Sprintf("x_c = %s", truncHex(m.data.OTOutputHex, 16)) + "\n")
 
 	if m.phase <= phaseOT {
 		return b.String()

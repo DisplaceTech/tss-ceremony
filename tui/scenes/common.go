@@ -44,6 +44,12 @@ type CeremonyData struct {
 	// Verification
 	Valid          bool
 	OpenSSLVerify  string
+
+	// DER encoding components (for the openssl breakdown)
+	MessageHex     string // raw message bytes as hex
+	PubKeyYHex     string // Y coordinate of combined public key
+	SigDERHex      string // full DER-encoded signature
+	PubKeyDERHex   string // full DER-encoded public key
 }
 
 // Config holds the TUI configuration.

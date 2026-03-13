@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"os"
@@ -243,6 +244,13 @@ func buildCeremonyData(c *protocol.Ceremony) *scenes.CeremonyData {
 	data.PartyASecretHex = fmt.Sprintf("%064x", c.PartyAKey.Serialize())
 	data.PartyBSecretHex = fmt.Sprintf("%064x", c.PartyBKey.Serialize())
 	data.OpenSSLVerify = c.GetOpenSSLVerifyCmd()
+	data.MessageHex = hex.EncodeToString(c.Message)
+	data.PubKeyDERHex = c.GetPubKeyDERHex()
+	data.SigDERHex = c.GetSignatureDERHex()
+	if c.PhantomKey != nil {
+		uncompressed := c.PhantomKey.SerializeUncompressed()
+		data.PubKeyYHex = fmt.Sprintf("%x", uncompressed[33:]) // Y coordinate
+	}
 
 	return data
 }

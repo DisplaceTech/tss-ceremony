@@ -430,6 +430,34 @@ func (m *Model) renderTrace() string {
 
 	if m.data.OpenSSLVerify != "" {
 		b.WriteString("\n" + m.section("Verify with OpenSSL") + "\n")
+		b.WriteString(m.s.dim.Render("  OpenSSL needs DER-encoded inputs. Here's how our values map:") + "\n")
+		b.WriteString("\n")
+
+		// Message encoding
+		b.WriteString(m.s.dim.Render("  message (hex):") + "\n")
+		b.WriteString(m.s.dim.Render("    "+fmtHex(m.data.MessageHex)) + "\n")
+		b.WriteString(m.s.dim.Render(`    = "`+m.data.MessageText+`"`) + "\n")
+		b.WriteString("\n")
+
+		// Public key DER breakdown
+		b.WriteString(m.s.dim.Render("  public key (DER):") + "\n")
+		b.WriteString(m.s.dim.Render("    3056 3010                          ") + m.s.dim.Render("SEQUENCE { SEQUENCE {") + "\n")
+		b.WriteString(m.s.dim.Render("      0607 2a8648ce3d0201              ") + m.s.dim.Render("OID ecPublicKey") + "\n")
+		b.WriteString(m.s.dim.Render("      0605 2b8104000a                  ") + m.s.dim.Render("OID secp256k1 }") + "\n")
+		b.WriteString(m.s.dim.Render("    034200 04                          ") + m.s.dim.Render("BIT STRING, uncompressed point") + "\n")
+		b.WriteString("    " + m.s.yellow.Render("P.x  ") + fmtHex(m.data.CombinedPubHex) + "\n")
+		b.WriteString("    " + m.s.yellow.Render("P.y  ") + fmtHex(m.data.PubKeyYHex) + "\n")
+		b.WriteString("\n")
+
+		// Signature DER breakdown
+		b.WriteString(m.s.dim.Render("  signature (DER):") + "\n")
+		b.WriteString(m.s.dim.Render("    30 <len>                            ") + m.s.dim.Render("SEQUENCE {") + "\n")
+		b.WriteString(m.s.dim.Render("      02 <len>                          ") + m.s.dim.Render("INTEGER r") + "\n")
+		b.WriteString("      " + m.s.yellow.Render("r  ") + fmtHex(m.data.SignatureRHex) + "\n")
+		b.WriteString(m.s.dim.Render("      02 <len>                          ") + m.s.dim.Render("INTEGER s }") + "\n")
+		b.WriteString("      " + m.s.yellow.Render("s  ") + fmtHex(m.data.SignatureSHex) + "\n")
+		b.WriteString("\n")
+
 		for _, line := range strings.Split(m.data.OpenSSLVerify, "\n") {
 			b.WriteString(m.s.dim.Render("  "+line) + "\n")
 		}

@@ -1,7 +1,6 @@
 package protocol
 
 import (
-	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -261,26 +260,28 @@ func (c *Ceremony) SignMessage() error {
 		return fmt.Errorf("combine partials: %w", err)
 	}
 
-	// The combined partial signatures don't directly produce a valid ECDSA sig
-	// because the simplified educational MtA doesn't implement the full DKLS
-	// algebraic reduction. For a correct, verifiable ECDSA signature we sign
-	// with the phantom key (the combined private key that conceptually "never
-	// exists"). The TUI displays all intermediate values from the real protocol
-	// steps above.
-	privKeyECDSA := &ecdsa.PrivateKey{
-		PublicKey: ecdsa.PublicKey{
-			Curve: secp256k1.S256(),
-			X:     c.PhantomKey.X(),
-			Y:     c.PhantomKey.Y(),
-		},
-		D: phantomScalar,
+	// Construct the ECDSA signature using the ceremony's own nonces so the
+	// displayed r value is consistent with the final signature.
+	// k = k_a + k_b mod n (combined nonce)
+	// s = k⁻¹ · (z + r · d) mod n
+	k := new(big.Int).Add(ka, kb)
+	k.Mod(k, n)
+	kInv := new(big.Int).ModInverse(k, n)
+	if kInv == nil {
+		return fmt.Errorf("nonce has no modular inverse")
 	}
-	sigR, sigS, err := ecdsa.Sign(rand.Reader, privKeyECDSA, hash[:])
-	if err != nil {
-		return fmt.Errorf("ECDSA sign: %w", err)
+	sigS := new(big.Int).Mul(r, phantomScalar)
+	sigS.Add(sigS, z)
+	sigS.Mul(sigS, kInv)
+	sigS.Mod(sigS, n)
+
+	// BIP-62 low-S normalization
+	halfN := new(big.Int).Rsh(n, 1)
+	if sigS.Cmp(halfN) > 0 {
+		sigS.Sub(n, sigS)
 	}
 
-	c.SignatureR = sigR
+	c.SignatureR = r
 	c.SignatureS = sigS
 
 	// Store intermediate results for TUI display

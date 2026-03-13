@@ -1,79 +1,78 @@
 # TSS Ceremony
 
-Interactive Terminal User Interface (TUI) for demonstrating Threshold Signature Scheme (TSS) ceremonies, specifically DKLS23 2-of-2 threshold ECDSA signing and FROST Schnorr threshold signatures.
+Interactive terminal animation of a DKLS23 2-of-2 threshold ECDSA signature ceremony over secp256k1.
 
-## Features
+Watch real cryptographic values compute in real time — key generation, nonce commitment, oblivious transfer, multiplicative-to-additive conversion, partial signatures, and final ECDSA signature assembly — then verify the result yourself with OpenSSL.
 
-- **DKLS23 ECDSA Ceremony**: Animated demonstration of the DKLS23 threshold ECDSA signing protocol
-- **FROST Schnorr Ceremony**: Animated demonstration of FROST (Flexible Round-Optimized Schnorr Threshold) threshold signatures
-- **Educational TUI**: Step-by-step visualization of cryptographic protocol execution
-- **Deterministic Testing**: Fixed-seed mode for reproducible testing and verification
+![demo](demo.gif)
 
-## Architecture
-
-- **`protocol/`**: Pure cryptographic logic (no TUI dependencies)
-  - DKLS signing (ECDSA)
-  - FROST signing (Schnorr)
-  - Multiplicative-to-Additive (MTA) conversion
-  - Oblivious Transfer (OT) implementation
-  - Key generation and verification
-
-- **`tui/`**: Bubble Tea terminal UI
-  - Scene-based architecture
-  - Animated protocol demonstrations
-  - Real-time visualization of cryptographic operations
-
-- **`tests/`**: Comprehensive test suite
-  - Protocol correctness tests
-  - Compatibility tests with standard libraries
-  - Integration tests
-
-## Installation
+## Install
 
 ```bash
 go install github.com/DisplaceTech/tss-ceremony@latest
 ```
 
+Or build from source:
+
+```bash
+git clone https://github.com/DisplaceTech/tss-ceremony.git
+cd tss-ceremony
+go build -o tss-ceremony .
+```
+
 ## Usage
 
 ```bash
-# Interactive mode
+# Run the ceremony
 tss-ceremony
 
-# Fixed-seed mode for deterministic testing
+# Deterministic mode (fixed keys, random nonces)
 tss-ceremony --fixed
 
-# Run specific scene
-tss-ceremony --scene <scene_number>
+# Animation speed: slow, normal, fast
+tss-ceremony --speed fast
+
+# Disable color
+tss-ceremony --no-color
+
+# Custom message to sign
+tss-ceremony --message "your message here"
+
+# Auto-quit after animation (useful for recordings)
+tss-ceremony --auto-quit
 ```
+
+### Controls
+
+| Key       | Action          |
+|-----------|-----------------|
+| `space`   | Pause / resume  |
+| `enter`   | Skip to next step |
+| `q` / `esc` | Quit         |
+
+### Verify a signature
+
+The ceremony produces a standard ECDSA signature. Verify it with the built-in command:
+
+```bash
+tss-ceremony --verify \
+  --pubkey <hex> --sig-r <hex> --sig-s <hex> --message "..."
+```
+
+Or use the OpenSSL one-liner shown at the end of the animation.
+
+## Architecture
+
+- **`protocol/`** — Pure crypto logic. No TUI dependencies. Fully testable.
+- **`tui/`** — Single-file Bubbletea animation with progressive hex reveal.
+- **`main.go`** — CLI parsing, ceremony init, TUI wiring.
 
 ## Testing
 
 ```bash
-# Run all tests
 go test ./...
-
-# Run protocol tests
-go test ./protocol/...
-
-# Run TUI tests
-go test ./tui/...
-
-# Run compatibility tests
-python3 tests/test_schnorr_compatibility.py
-python3 tests/test_frost_schnorr_integration.py
 ```
-
-## Schnorr Signature Compatibility
-
-The FROST/Schnorr implementation produces signatures compatible with standard Schnorr verification tools. See [docs/compatibility.md](docs/compatibility.md) for detailed compatibility results.
-
-## Dependencies
-
-- **Go**: 1.25.7 or later
-- **Bubble Tea**: github.com/charmbracelet/bubbletea
-- **secp256k1**: github.com/decred/dcrd/dcrec/secp256k1/v4
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT License — see [LICENSE](LICENSE) for details.

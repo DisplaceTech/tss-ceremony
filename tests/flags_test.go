@@ -11,7 +11,6 @@ type noColorConfig struct {
 	Fixed          bool
 	Speed          string
 	Message        string
-	ValidateLayout bool
 	Verify         bool
 }
 
@@ -24,8 +23,6 @@ func parseNoColorArgs(args []string) *noColorConfig {
 			cfg.NoColor = true
 		case "--fixed":
 			cfg.Fixed = true
-		case "--validate-layout":
-			cfg.ValidateLayout = true
 		case "--verify":
 			cfg.Verify = true
 		case "--speed":
@@ -87,17 +84,6 @@ func TestNoColorWithMessage(t *testing.T) {
 	}
 	if cfg.Message != "deadbeef" {
 		t.Errorf("expected Message=deadbeef, got %q", cfg.Message)
-	}
-}
-
-// TestNoColorWithValidateLayout verifies --no-color combined with --validate-layout.
-func TestNoColorWithValidateLayout(t *testing.T) {
-	cfg := parseNoColorArgs([]string{"--no-color", "--validate-layout"})
-	if !cfg.NoColor {
-		t.Error("expected NoColor=true")
-	}
-	if !cfg.ValidateLayout {
-		t.Error("expected ValidateLayout=true")
 	}
 }
 

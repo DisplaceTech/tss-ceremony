@@ -1,9 +1,9 @@
 package protocol
 
 import (
-	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/asn1"
 	"encoding/hex"
 	"fmt"
 	"math/big"
@@ -80,7 +80,7 @@ func NewCeremony(fixedMode bool, message string, speed string, noColor bool) (*C
 	if message != "" {
 		ceremony.Message = []byte(message)
 	} else {
-		ceremony.Message = []byte("Hello, threshold signatures!")
+		ceremony.Message = []byte("Hello, threshold signatures")
 	}
 
 	// Generate keys
@@ -139,7 +139,50 @@ func (c *Ceremony) GetSignatureHex() (string, string) {
 	if c.SignatureR == nil || c.SignatureS == nil {
 		return "", ""
 	}
-	return hex.EncodeToString(c.SignatureR.Bytes()), hex.EncodeToString(c.SignatureS.Bytes())
+	return fmt.Sprintf("%064x", c.SignatureR), fmt.Sprintf("%064x", c.SignatureS)
+}
+
+// GetPubKeyDERHex returns the combined public key as a DER-encoded
+// SubjectPublicKeyInfo hex string suitable for openssl.
+func (c *Ceremony) GetPubKeyDERHex() string {
+	if c.PhantomKey == nil {
+		return ""
+	}
+	// DER header for secp256k1 uncompressed public key (SubjectPublicKeyInfo)
+	// SEQUENCE { SEQUENCE { OID ecPublicKey, OID secp256k1 }, BIT STRING { 04 || X || Y } }
+	header, _ := hex.DecodeString("3056301006072a8648ce3d020106052b8104000a034200")
+	uncompressed := c.PhantomKey.SerializeUncompressed() // 65 bytes: 04 || X || Y
+	der := append(header, uncompressed...)
+	return hex.EncodeToString(der)
+}
+
+// GetSignatureDERHex returns the ECDSA signature as a DER-encoded hex string.
+func (c *Ceremony) GetSignatureDERHex() string {
+	if c.SignatureR == nil || c.SignatureS == nil {
+		return ""
+	}
+	type ecdsaSig struct {
+		R, S *big.Int
+	}
+	derBytes, err := asn1.Marshal(ecdsaSig{R: c.SignatureR, S: c.SignatureS})
+	if err != nil {
+		return ""
+	}
+	return hex.EncodeToString(derBytes)
+}
+
+// GetOpenSSLVerifyCmd returns an openssl one-liner to verify the ceremony signature.
+func (c *Ceremony) GetOpenSSLVerifyCmd() string {
+	pubDER := c.GetPubKeyDERHex()
+	sigDER := c.GetSignatureDERHex()
+	msg := string(c.Message)
+	if pubDER == "" || sigDER == "" {
+		return ""
+	}
+	return fmt.Sprintf(
+		"echo -n '%s' | \\\n    openssl dgst -sha256 \\\n    -verify <(echo '%s' | \\\n      xxd -r -p | openssl ec -pubin -inform DER 2>/dev/null) \\\n    -signature <(echo '%s' | xxd -r -p)",
+		msg, pubDER, sigDER,
+	)
 }
 
 // GetSpeedDelay returns the delay multiplier based on speed setting
@@ -261,26 +304,28 @@ func (c *Ceremony) SignMessage() error {
 		return fmt.Errorf("combine partials: %w", err)
 	}
 
-	// The combined partial signatures don't directly produce a valid ECDSA sig
-	// because the simplified educational MtA doesn't implement the full DKLS
-	// algebraic reduction. For a correct, verifiable ECDSA signature we sign
-	// with the phantom key (the combined private key that conceptually "never
-	// exists"). The TUI displays all intermediate values from the real protocol
-	// steps above.
-	privKeyECDSA := &ecdsa.PrivateKey{
-		PublicKey: ecdsa.PublicKey{
-			Curve: secp256k1.S256(),
-			X:     c.PhantomKey.X(),
-			Y:     c.PhantomKey.Y(),
-		},
-		D: phantomScalar,
+	// Construct the ECDSA signature using the ceremony's own nonces so the
+	// displayed r value is consistent with the final signature.
+	// k = k_a + k_b mod n (combined nonce)
+	// s = k⁻¹ · (z + r · d) mod n
+	k := new(big.Int).Add(ka, kb)
+	k.Mod(k, n)
+	kInv := new(big.Int).ModInverse(k, n)
+	if kInv == nil {
+		return fmt.Errorf("nonce has no modular inverse")
 	}
-	sigR, sigS, err := ecdsa.Sign(rand.Reader, privKeyECDSA, hash[:])
-	if err != nil {
-		return fmt.Errorf("ECDSA sign: %w", err)
+	sigS := new(big.Int).Mul(r, phantomScalar)
+	sigS.Add(sigS, z)
+	sigS.Mul(sigS, kInv)
+	sigS.Mod(sigS, n)
+
+	// BIP-62 low-S normalization
+	halfN := new(big.Int).Rsh(n, 1)
+	if sigS.Cmp(halfN) > 0 {
+		sigS.Sub(n, sigS)
 	}
 
-	c.SignatureR = sigR
+	c.SignatureR = r
 	c.SignatureS = sigS
 
 	// Store intermediate results for TUI display

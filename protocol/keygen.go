@@ -187,7 +187,7 @@ func NewCeremonyFromConfig(config *CeremonyConfig) (*Ceremony, error) {
 	if config.Message != "" {
 		ceremony.Message = []byte(config.Message)
 	} else {
-		ceremony.Message = []byte("Hello, threshold signatures!")
+		ceremony.Message = []byte("Hello, threshold signatures")
 	}
 
 	// Initialize based on mode

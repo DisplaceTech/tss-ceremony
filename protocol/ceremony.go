@@ -3,6 +3,7 @@ package protocol
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/asn1"
 	"encoding/hex"
 	"fmt"
 	"math/big"
@@ -139,6 +140,49 @@ func (c *Ceremony) GetSignatureHex() (string, string) {
 		return "", ""
 	}
 	return fmt.Sprintf("%064x", c.SignatureR), fmt.Sprintf("%064x", c.SignatureS)
+}
+
+// GetPubKeyDERHex returns the combined public key as a DER-encoded
+// SubjectPublicKeyInfo hex string suitable for openssl.
+func (c *Ceremony) GetPubKeyDERHex() string {
+	if c.PhantomKey == nil {
+		return ""
+	}
+	// DER header for secp256k1 uncompressed public key (SubjectPublicKeyInfo)
+	// SEQUENCE { SEQUENCE { OID ecPublicKey, OID secp256k1 }, BIT STRING { 04 || X || Y } }
+	header, _ := hex.DecodeString("3056301006072a8648ce3d020106052b8104000a034200")
+	uncompressed := c.PhantomKey.SerializeUncompressed() // 65 bytes: 04 || X || Y
+	der := append(header, uncompressed...)
+	return hex.EncodeToString(der)
+}
+
+// GetSignatureDERHex returns the ECDSA signature as a DER-encoded hex string.
+func (c *Ceremony) GetSignatureDERHex() string {
+	if c.SignatureR == nil || c.SignatureS == nil {
+		return ""
+	}
+	type ecdsaSig struct {
+		R, S *big.Int
+	}
+	derBytes, err := asn1.Marshal(ecdsaSig{R: c.SignatureR, S: c.SignatureS})
+	if err != nil {
+		return ""
+	}
+	return hex.EncodeToString(derBytes)
+}
+
+// GetOpenSSLVerifyCmd returns an openssl one-liner to verify the ceremony signature.
+func (c *Ceremony) GetOpenSSLVerifyCmd() string {
+	pubDER := c.GetPubKeyDERHex()
+	sigDER := c.GetSignatureDERHex()
+	msgHex := hex.EncodeToString(c.Message)
+	if pubDER == "" || sigDER == "" {
+		return ""
+	}
+	return fmt.Sprintf(
+		`echo '%s' | xxd -r -p | openssl dgst -sha256 -verify <(echo '%s' | xxd -r -p | openssl ec -pubin -inform DER 2>/dev/null) -signature <(echo '%s' | xxd -r -p)`,
+		msgHex, pubDER, sigDER,
+	)
 }
 
 // GetSpeedDelay returns the delay multiplier based on speed setting

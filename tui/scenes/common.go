@@ -42,7 +42,8 @@ type CeremonyData struct {
 	SignatureSHex string
 
 	// Verification
-	Valid bool
+	Valid          bool
+	OpenSSLVerify  string
 }
 
 // Config holds the TUI configuration.

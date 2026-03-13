@@ -428,6 +428,11 @@ func (m *Model) renderTrace() string {
 	b.WriteString(m.s.dim.Render("  The signature (r, s) is valid under combined key P.") + "\n")
 	b.WriteString(m.s.dim.Render("  No single party ever held the private key p.") + "\n")
 
+	if m.data.OpenSSLVerify != "" {
+		b.WriteString("\n" + m.section("Verify with OpenSSL") + "\n")
+		b.WriteString(m.s.dim.Render("  "+m.data.OpenSSLVerify) + "\n")
+	}
+
 	return b.String()
 }
 

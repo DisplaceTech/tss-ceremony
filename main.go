@@ -178,6 +178,11 @@ func main() {
 	fmt.Printf("Signature R: %s\n", r)
 	fmt.Printf("Signature S: %s\n", s)
 	fmt.Printf("Message:     %s\n", string(ceremony.Message))
+
+	if cmd := ceremony.GetOpenSSLVerifyCmd(); cmd != "" {
+		fmt.Println("\n=== Verify with OpenSSL ===")
+		fmt.Println(cmd)
+	}
 }
 
 // buildCeremonyData converts protocol.Ceremony results into TUI-displayable data.
@@ -237,6 +242,7 @@ func buildCeremonyData(c *protocol.Ceremony) *scenes.CeremonyData {
 
 	data.PartyASecretHex = fmt.Sprintf("%064x", c.PartyAKey.Serialize())
 	data.PartyBSecretHex = fmt.Sprintf("%064x", c.PartyBKey.Serialize())
+	data.OpenSSLVerify = c.GetOpenSSLVerifyCmd()
 
 	return data
 }

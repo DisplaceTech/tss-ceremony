@@ -139,26 +139,6 @@ func ValidateTerminalSize(width, height int, spec LayoutSpec) ValidationResult {
 	return result
 }
 
-// stripANSI removes ANSI escape sequences from a string for length measurement.
-func stripANSI(s string) string {
-	var result strings.Builder
-	i := 0
-	for i < len(s) {
-		if s[i] == '\x1b' && i+1 < len(s) && s[i+1] == '[' {
-			// Skip until 'm'
-			i += 2
-			for i < len(s) && s[i] != 'm' {
-				i++
-			}
-			i++ // skip 'm'
-		} else {
-			result.WriteByte(s[i])
-			i++
-		}
-	}
-	return result.String()
-}
-
 // ValidateLayoutStructure checks the structural elements of the layout
 // (borders, alignment, column widths) against the spec.
 // Header/footer widths are measured after stripping ANSI escape codes.

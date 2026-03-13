@@ -103,16 +103,16 @@ var sceneNames = [20]string{
 	"Scene 2: Secret Generation",
 	"Scene 3: Public Share Exchange",
 	"Scene 4: Combined Public Key",
-	"Scene 5: Placeholder",
-	"Scene 6: Placeholder",
-	"Scene 7: Placeholder",
-	"Scene 8: Placeholder",
-	"Scene 9: Placeholder",
-	"Scene 10: Placeholder",
-	"Scene 11: Placeholder",
-	"Scene 12: Placeholder",
-	"Scene 13: Placeholder",
-	"Scene 14: Placeholder",
+	"Scene 5: Message & Hash",
+	"Scene 6: Nonce Generation",
+	"Scene 7-8: Oblivious Transfer",
+	"Scene 7-8: Oblivious Transfer",
+	"Scene 9: MtA Conversion",
+	"Scene 10: Partial Signatures",
+	"Scene 11: Signature Assembly",
+	"Scene 12: Verification",
+	"Scene 13: Security Proof",
+	"Scene 14: Ceremony Summary",
 	"Scene 15: The Reveal",
 	"Scene 16: Schnorr vs ECDSA",
 	"Scene 17: FROST Side-by-Side",
@@ -121,22 +121,42 @@ var sceneNames = [20]string{
 }
 
 // createScenes creates all ceremony scenes.
-// Concrete implementations replace placeholders as they are built.
 func (m Model) createScenes() []Scene {
 	s := make([]Scene, 20)
 
-	// Core DKLS ceremony scenes (0-14)
+	// Core DKLS ceremony scenes (0-4): Key Generation
 	s[0] = scenes.NewTitleScene(m.config, m.styles)
 	s[1] = scenes.NewConfigScene(m.config, m.styles)
 	s[2] = scenes.NewSecretGenScene(m.config, m.styles)
 	s[3] = scenes.NewPublicShareScene(m.config, m.styles)
 	s[4] = scenes.NewCombineScene(m.config, m.styles)
 
-	for i := 5; i < 15; i++ {
-		s[i] = &PlaceholderScene{SceneNum: i, Config: m.config, Styles: m.styles}
-	}
+	// Core DKLS ceremony scenes (5-11): Signing
+	s[5] = scenes.NewSignMessageScene(m.config, m.styles)
+	s[6] = scenes.NewSignNonceScene(m.config, m.styles)
+	s[7] = scenes.NewSignOTScene(m.config, m.styles)
+	s[8] = scenes.NewSignOTScene(m.config, m.styles) // OT continued (same scene type)
+	s[9] = scenes.NewMtAScene(m.config, m.styles)
+	s[10] = scenes.NewPartialSigScene(m.config, m.styles)
+	s[11] = scenes.NewCombineSigScene(m.config, m.styles)
 
-	// Bonus scenes (15-19) — concrete implementations from PR #4.
+	// Core DKLS ceremony scenes (12-14): Verification & Summary
+	noColor := m.config != nil && m.config.NoColor
+	pubkey, sigR, sigS, message := "", "", "", ""
+	valid := true
+	if m.config != nil && m.config.Ceremony != nil {
+		cd := m.config.Ceremony
+		pubkey = cd.CombinedPubHex
+		sigR = cd.SignatureRHex
+		sigS = cd.SignatureSHex
+		message = cd.MessageText
+		valid = cd.Valid
+	}
+	s[12] = scenes.NewVerifyScene(noColor, pubkey, sigR, sigS, message, valid)
+	s[13] = scenes.NewImpossibilityScene(m.config, m.styles)
+	s[14] = scenes.NewSummaryScene(m.config, m.styles)
+
+	// Bonus scenes (15-19): Schnorr/FROST comparison
 	s[15] = scenes.NewRevealScene()
 	s[16] = scenes.NewSchnorrCompareScene()
 	s[17] = scenes.NewScene()

@@ -2,7 +2,6 @@ package scenes
 
 import (
 	"encoding/hex"
-	"fmt"
 	"strings"
 	"time"
 
@@ -235,117 +234,6 @@ func (s *PublicShareScene) Render() string {
 	return threeCol + statusStyle.Render(status) + "\n"
 }
 
-// renderScalarMult renders the scalar multiplication animation
-func (s *PublicShareScene) renderScalarMult(secret, public, color string, step, maxSteps int) string {
-	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("  %s = %s × G", public, secret))
-	
-	// Progress bar
-	arrowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("226"))
-	builder.WriteString("\n  ")
-	for i := 0; i < maxSteps; i++ {
-		if i < step {
-			builder.WriteString(arrowStyle.Render("→"))
-		} else {
-			builder.WriteString("·")
-		}
-	}
-	
-	// Result - public share displayed in Yellow/Gold
-	publicColor := lipgloss.NewStyle().Foreground(lipgloss.Color("226")) // Yellow/Gold
-	if step >= maxSteps {
-		// Use actual computed public share if available, otherwise generate placeholder
-		displayValue := s.partyAPub
-		if displayValue == "" {
-			displayValue = s.generateRandomHex(128)
-		}
-		builder.WriteString(fmt.Sprintf("\n  %s%s%s = %s", publicColor.Render(public), Reset, Reset, displayValue))
-	}
-	return builder.String()
-}
-
-// renderCompletedScalarMult renders a completed scalar multiplication
-func (s *PublicShareScene) renderCompletedScalarMult(secret, public, color string) string {
-	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("  %s = %s × G", public, secret))
-	// Public share displayed in Yellow/Gold
-	publicColor := lipgloss.NewStyle().Foreground(lipgloss.Color("226")) // Yellow/Gold
-	// Use actual computed public share if available, otherwise generate placeholder
-	displayValue := s.partyAPub
-	if displayValue == "" {
-		displayValue = s.partyBPub
-	}
-	if displayValue == "" {
-		displayValue = s.generateRandomHex(128)
-	}
-	builder.WriteString(fmt.Sprintf("\n  ↓ (scalar multiplication)\n  %s%s%s = %s", publicColor.Render(public), Reset, Reset, displayValue))
-	return builder.String()
-}
-
-// renderPlaceholder renders a placeholder for not-yet-computed share
-func (s *PublicShareScene) renderPlaceholder(secret, public, color string) string {
-	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("  %s = %s × G", public, secret))
-	builder.WriteString("\n  (waiting...)")
-	return builder.String()
-}
-
-// renderExchangeAnimation renders the exchange animation
-func (s *PublicShareScene) renderExchangeAnimation(step, maxSteps int) string {
-	var builder strings.Builder
-	
-	// Party A's public share (in Yellow/Gold)
-	publicColor := lipgloss.NewStyle().Foreground(lipgloss.Color("226")) // Yellow/Gold
-	displayA := s.partyAPub
-	if displayA == "" {
-		displayA = s.generateRandomHex(128)
-	}
-	builder.WriteString(fmt.Sprintf("  %sA%s = a × G\n  %s%s%s = %s\n", 
-		publicColor.Render(PartyAColor+"A"+Reset), Reset,
-		publicColor.Render(PartyAColor+"A"+Reset), Reset, Reset, displayA))
-	
-	// Exchange arrows - animated bidirectional arrows
-	arrowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("226")) // Yellow/Gold for public exchange
-	builder.WriteString("  ")
-	for i := 0; i < maxSteps; i++ {
-		if i < step {
-			// Alternate between → and ← to show bidirectional exchange
-			if i%2 == 0 {
-				builder.WriteString(arrowStyle.Render("→"))
-			} else {
-				builder.WriteString(arrowStyle.Render("←"))
-			}
-		} else {
-			builder.WriteString("·")
-		}
-	}
-	builder.WriteString("\n")
-	
-	// Party B's public share (in Yellow/Gold)
-	displayB := s.partyBPub
-	if displayB == "" {
-		displayB = s.generateRandomHex(128)
-	}
-	builder.WriteString(fmt.Sprintf("  %sB%s = b × G\n  %s%s%s = %s", 
-		publicColor.Render(PartyBColor+"B"+Reset), Reset,
-		publicColor.Render(PartyBColor+"B"+Reset), Reset, Reset, displayB))
-	
-	return builder.String()
-}
-
-// generateRandomHex generates a random hex string
-func (s *PublicShareScene) generateRandomHex(length int) string {
-	hexChars := "0123456789abcdef"
-	var builder strings.Builder
-	for i := 0; i < length; i++ {
-		builder.WriteByte(hexChars[getRandomInt(16)])
-		// Add space every 8 characters
-		if (i+1)%8 == 0 && i < length-1 {
-			builder.WriteString(" ")
-		}
-	}
-	return builder.String()
-}
 
 // View renders the scene view (required by tea.Model interface)
 func (s *PublicShareScene) View() string {

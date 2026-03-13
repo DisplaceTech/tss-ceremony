@@ -37,8 +37,8 @@ func TestECDSARoundTripVerification(t *testing.T) {
 		t.Fatal("Signature components are empty")
 	}
 
-	// Get Party A's public key (uncompressed format without 0x04 prefix)
-	partyAPubBytes := ceremony.PartyAPub.SerializeUncompressed()
+	// Get the combined (phantom) public key (uncompressed format without 0x04 prefix)
+	partyAPubBytes := ceremony.PhantomKey.SerializeUncompressed()
 	partyAPubHex := hex.EncodeToString(partyAPubBytes[1:]) // Skip 0x04 prefix
 
 	// Create temporary directory for test files
@@ -119,8 +119,8 @@ func TestECDSARoundTripVerificationRandomMode(t *testing.T) {
 		t.Fatal("Signature components are empty")
 	}
 
-	// Get Party A's public key
-	partyAPubBytes := ceremony.PartyAPub.SerializeUncompressed()
+	// Get the combined (phantom) public key
+	partyAPubBytes := ceremony.PhantomKey.SerializeUncompressed()
 	partyAPubHex := hex.EncodeToString(partyAPubBytes[1:])
 
 	// Create temporary directory
@@ -197,8 +197,8 @@ func TestECDSARoundTripInvalidSignature(t *testing.T) {
 	// Tamper with the signature (change R component)
 	tamperedR := "0000000000000000000000000000000000000000000000000000000000000001"
 
-	// Get Party A's public key
-	partyAPubBytes := ceremony.PartyAPub.SerializeUncompressed()
+	// Get the combined (phantom) public key
+	partyAPubBytes := ceremony.PhantomKey.SerializeUncompressed()
 	partyAPubHex := hex.EncodeToString(partyAPubBytes[1:])
 
 	// Create temporary directory
@@ -268,8 +268,8 @@ func TestECDSARoundTripWrongMessage(t *testing.T) {
 	// Get signature components
 	rHex, sHex := ceremony.GetSignatureHex()
 
-	// Get Party A's public key
-	partyAPubBytes := ceremony.PartyAPub.SerializeUncompressed()
+	// Get the combined (phantom) public key
+	partyAPubBytes := ceremony.PhantomKey.SerializeUncompressed()
 	partyAPubHex := hex.EncodeToString(partyAPubBytes[1:])
 
 	// Create temporary directory
@@ -340,8 +340,8 @@ func TestECDSARoundTripInternalExternalConsistency(t *testing.T) {
 	// Get signature components
 	rHex, sHex := ceremony.GetSignatureHex()
 
-	// Get Party A's public key
-	partyAPubBytes := ceremony.PartyAPub.SerializeUncompressed()
+	// Get the combined (phantom) public key
+	partyAPubBytes := ceremony.PhantomKey.SerializeUncompressed()
 	partyAPubHex := hex.EncodeToString(partyAPubBytes[1:])
 
 	// Encode message as hex
@@ -430,8 +430,8 @@ func TestECDSARoundTripStandardLibraryConsistency(t *testing.T) {
 	// Get signature components
 	rHex, sHex := ceremony.GetSignatureHex()
 
-	// Get Party A's public key
-	partyAPubBytes := ceremony.PartyAPub.SerializeUncompressed()
+	// Get the combined (phantom) public key
+	partyAPubBytes := ceremony.PhantomKey.SerializeUncompressed()
 	pubKey, err := secp256k1.ParsePubKey(partyAPubBytes)
 	if err != nil {
 		t.Fatalf("Failed to parse public key: %v", err)

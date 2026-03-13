@@ -121,12 +121,3 @@ func randIntFromReader(reader io.Reader, max *big.Int) (*big.Int, error) {
 	return rand.Int(reader, max)
 }
 
-// randBytes returns n pseudo-random bytes using the protocol's random source.
-func randBytes(n int) ([]byte, error) {
-	buf := make([]byte, n)
-	_, err := randReader().Read(buf)
-	if err != nil {
-		return nil, err
-	}
-	return buf, nil
-}

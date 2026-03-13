@@ -32,6 +32,10 @@ const (
 	phasePartialB        // animate partial sig s_b
 	phaseSig             // animate final s
 	phaseVerify          // show verification (instant)
+	phaseDERMsg          // show message hex encoding (instant)
+	phaseDERKey          // show public key DER breakdown (instant)
+	phaseDERSig          // show signature DER breakdown (instant)
+	phaseDERCmd          // show openssl command (instant)
 	phaseDone            // animation complete
 )
 
@@ -428,42 +432,134 @@ func (m *Model) renderTrace() string {
 	b.WriteString(m.s.dim.Render("  The signature (r, s) is valid under combined key P.") + "\n")
 	b.WriteString(m.s.dim.Render("  No single party ever held the private key p.") + "\n")
 
-	if m.data.OpenSSLVerify != "" {
-		b.WriteString("\n" + m.section("Verify with OpenSSL") + "\n")
-		b.WriteString(m.s.dim.Render("  OpenSSL needs DER-encoded inputs. Here's how our values map:") + "\n")
-		b.WriteString("\n")
-
-		// Message encoding
-		b.WriteString(m.s.dim.Render("  message (hex):") + "\n")
-		b.WriteString(m.s.dim.Render("    "+fmtHex(m.data.MessageHex)) + "\n")
-		b.WriteString(m.s.dim.Render(`    = "`+m.data.MessageText+`"`) + "\n")
-		b.WriteString("\n")
-
-		// Public key DER breakdown
-		b.WriteString(m.s.dim.Render("  public key (DER):") + "\n")
-		b.WriteString(m.s.dim.Render("    3056 3010                          ") + m.s.dim.Render("SEQUENCE { SEQUENCE {") + "\n")
-		b.WriteString(m.s.dim.Render("      0607 2a8648ce3d0201              ") + m.s.dim.Render("OID ecPublicKey") + "\n")
-		b.WriteString(m.s.dim.Render("      0605 2b8104000a                  ") + m.s.dim.Render("OID secp256k1 }") + "\n")
-		b.WriteString(m.s.dim.Render("    034200 04                          ") + m.s.dim.Render("BIT STRING, uncompressed point") + "\n")
-		b.WriteString("    " + m.s.yellow.Render("P.x  ") + fmtHex(m.data.CombinedPubHex) + "\n")
-		b.WriteString("    " + m.s.yellow.Render("P.y  ") + fmtHex(m.data.PubKeyYHex) + "\n")
-		b.WriteString("\n")
-
-		// Signature DER breakdown
-		b.WriteString(m.s.dim.Render("  signature (DER):") + "\n")
-		b.WriteString(m.s.dim.Render("    30 <len>                            ") + m.s.dim.Render("SEQUENCE {") + "\n")
-		b.WriteString(m.s.dim.Render("      02 <len>                          ") + m.s.dim.Render("INTEGER r") + "\n")
-		b.WriteString("      " + m.s.yellow.Render("r  ") + fmtHex(m.data.SignatureRHex) + "\n")
-		b.WriteString(m.s.dim.Render("      02 <len>                          ") + m.s.dim.Render("INTEGER s }") + "\n")
-		b.WriteString("      " + m.s.yellow.Render("s  ") + fmtHex(m.data.SignatureSHex) + "\n")
-		b.WriteString("\n")
-
-		for _, line := range strings.Split(m.data.OpenSSLVerify, "\n") {
-			b.WriteString(m.s.dim.Render("  "+line) + "\n")
-		}
+	if m.phase <= phaseVerify || m.data.OpenSSLVerify == "" {
+		return b.String()
 	}
 
+	b.WriteString("\n" + m.section("Verify with OpenSSL") + "\n")
+	b.WriteString(m.s.dim.Render("  OpenSSL needs DER-encoded inputs. Here's how our values map:") + "\n")
+	b.WriteString("\n")
+
+	// Message encoding
+	b.WriteString(m.s.dim.Render("  message (hex):") + "\n")
+	b.WriteString("    " + m.s.green.Render(fmtHex(m.data.MessageHex)) + "\n")
+	b.WriteString(m.s.dim.Render(`    = "`+m.data.MessageText+`"`) + "\n")
+
+	if m.phase <= phaseDERMsg {
+		return b.String()
+	}
+
+	// Public key DER breakdown
+	b.WriteString("\n")
+	b.WriteString(m.s.dim.Render("  public key (DER):") + "\n")
+	b.WriteString(m.s.dim.Render("    3056 3010                          ") + m.s.dim.Render("SEQUENCE { SEQUENCE {") + "\n")
+	b.WriteString(m.s.dim.Render("      0607 2a8648ce3d0201              ") + m.s.dim.Render("OID ecPublicKey") + "\n")
+	b.WriteString(m.s.dim.Render("      0605 2b8104000a                  ") + m.s.dim.Render("OID secp256k1 }") + "\n")
+	b.WriteString(m.s.dim.Render("    034200 04                          ") + m.s.dim.Render("BIT STRING, uncompressed point") + "\n")
+	b.WriteString("    " + m.s.cyan.Render("P.x  ") + m.s.cyan.Render(fmtHex(m.data.CombinedPubHex)) + "\n")
+	b.WriteString("    " + m.s.magenta.Render("P.y  ") + m.s.magenta.Render(fmtHex(m.data.PubKeyYHex)) + "\n")
+
+	if m.phase <= phaseDERKey {
+		return b.String()
+	}
+
+	// Signature DER breakdown
+	b.WriteString("\n")
+	b.WriteString(m.s.dim.Render("  signature (DER):") + "\n")
+	b.WriteString(m.s.dim.Render("    30 <len>                            ") + m.s.dim.Render("SEQUENCE {") + "\n")
+	b.WriteString(m.s.dim.Render("      02 <len>                          ") + m.s.dim.Render("INTEGER r") + "\n")
+	b.WriteString("      " + m.s.yellow.Render("r  ") + m.s.yellow.Render(fmtHex(m.data.SignatureRHex)) + "\n")
+	b.WriteString(m.s.dim.Render("      02 <len>                          ") + m.s.dim.Render("INTEGER s }") + "\n")
+	b.WriteString("      " + m.s.yellow.Render("s  ") + m.s.yellow.Render(fmtHex(m.data.SignatureSHex)) + "\n")
+
+	if m.phase <= phaseDERSig {
+		return b.String()
+	}
+
+	// Colorized openssl command
+	b.WriteString("\n")
+	b.WriteString(m.renderColorizedCmd())
+
+
 	return b.String()
+}
+
+// renderColorizedCmd renders the openssl command with colored DER components.
+// ANSI colors don't affect copy-paste, so the command remains valid bash.
+func (m *Model) renderColorizedCmd() string {
+	d := m.data
+	dim := m.s.dim
+
+	// Public key DER: fixed header (48 hex chars) + P.x (64) + P.y (64) = 176
+	pubHeader := "3056301006072a8648ce3d020106052b8104000a03420004"
+	colorPub := dim.Render(pubHeader) +
+		m.s.cyan.Render(d.CombinedPubHex) +
+		m.s.magenta.Render(d.PubKeyYHex)
+
+	// Signature DER: find r and s within the DER hex
+	colorSig := m.colorizeSigDER(d.SigDERHex)
+
+	// Message hex
+	colorMsg := m.s.green.Render(d.MessageHex)
+
+	var b strings.Builder
+	b.WriteString(dim.Render("  echo '") + colorMsg + dim.Render("' | xxd -r -p | \\") + "\n")
+	b.WriteString(dim.Render("      openssl dgst -sha256 \\") + "\n")
+	b.WriteString(dim.Render("      -verify <(echo '") + colorPub + dim.Render("' | \\") + "\n")
+	b.WriteString(dim.Render("        xxd -r -p | openssl ec -pubin -inform DER 2>/dev/null) \\") + "\n")
+	b.WriteString(dim.Render("      -signature <(echo '") + colorSig + dim.Render("' | xxd -r -p)") + "\n")
+	return b.String()
+}
+
+// colorizeSigDER highlights r and s values within a DER-encoded signature hex.
+func (m *Model) colorizeSigDER(derHex string) string {
+	// DER structure: 30 <len> 02 <rlen> <r_bytes> 02 <slen> <s_bytes>
+	// All positions in hex characters (2 per byte)
+	if len(derHex) < 8 {
+		return m.s.dim.Render(derHex)
+	}
+
+	// Parse r length at offset 3 (byte index), hex position 6
+	rLen := hexByte(derHex[6:8]) * 2 // length in hex chars
+	rStart := 8
+	rEnd := rStart + rLen
+
+	// After r: 02 <slen> <s_bytes>
+	sLenPos := rEnd + 2
+	if sLenPos+2 > len(derHex) {
+		return m.s.dim.Render(derHex)
+	}
+	sLen := hexByte(derHex[sLenPos:sLenPos+2]) * 2
+	sStart := sLenPos + 2
+	sEnd := sStart + sLen
+
+	dim := m.s.dim
+	var sb strings.Builder
+	sb.WriteString(dim.Render(derHex[:rStart]))                        // 30<len>02<rlen>
+	sb.WriteString(m.s.yellow.Render(derHex[rStart:rEnd]))             // r bytes
+	sb.WriteString(dim.Render(derHex[rEnd:sStart]))                    // 02<slen>
+	sb.WriteString(m.s.yellow.Render(derHex[sStart:sEnd]))             // s bytes
+	if sEnd < len(derHex) {
+		sb.WriteString(dim.Render(derHex[sEnd:]))
+	}
+	return sb.String()
+}
+
+// hexByte parses a 2-char hex string as an integer.
+func hexByte(s string) int {
+	var v int
+	for _, c := range s {
+		v *= 16
+		switch {
+		case c >= '0' && c <= '9':
+			v += int(c - '0')
+		case c >= 'a' && c <= 'f':
+			v += int(c-'a') + 10
+		case c >= 'A' && c <= 'F':
+			v += int(c-'A') + 10
+		}
+	}
+	return v
 }
 
 // ---------------------------------------------------------------------------

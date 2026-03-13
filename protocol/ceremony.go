@@ -180,7 +180,7 @@ func (c *Ceremony) GetOpenSSLVerifyCmd() string {
 		return ""
 	}
 	return fmt.Sprintf(
-		`echo '%s' | xxd -r -p | openssl dgst -sha256 -verify <(echo '%s' | xxd -r -p | openssl ec -pubin -inform DER 2>/dev/null) -signature <(echo '%s' | xxd -r -p)`,
+		"echo '%s' | xxd -r -p | \\\n    openssl dgst -sha256 \\\n    -verify <(echo '%s' | \\\n      xxd -r -p | openssl ec -pubin -inform DER 2>/dev/null) \\\n    -signature <(echo '%s' | xxd -r -p)",
 		msgHex, pubDER, sigDER,
 	)
 }

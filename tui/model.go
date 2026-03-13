@@ -430,7 +430,9 @@ func (m *Model) renderTrace() string {
 
 	if m.data.OpenSSLVerify != "" {
 		b.WriteString("\n" + m.section("Verify with OpenSSL") + "\n")
-		b.WriteString(m.s.dim.Render("  "+m.data.OpenSSLVerify) + "\n")
+		for _, line := range strings.Split(m.data.OpenSSLVerify, "\n") {
+			b.WriteString(m.s.dim.Render("  "+line) + "\n")
+		}
 	}
 
 	return b.String()

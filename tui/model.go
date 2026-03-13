@@ -140,7 +140,17 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case tickMsg:
-		if m.paused || m.phase >= phaseDone {
+		if m.paused {
+			return m, nil
+		}
+		if m.phase >= phaseDone {
+			if m.config.AutoQuit {
+				if m.waitTicks <= 0 {
+					return m, tea.Quit
+				}
+				m.waitTicks--
+				return m, m.tick()
+			}
 			return m, nil
 		}
 		m.advance()
@@ -162,7 +172,11 @@ func (m *Model) advance() {
 		// Instant phase
 		m.phase++
 		m.animPos = 0
-		m.waitTicks = 5
+		if m.phase >= phaseDone && m.config.AutoQuit {
+			m.waitTicks = 100 // ~3s pause before auto-quit
+		} else {
+			m.waitTicks = 5
+		}
 		return
 	}
 

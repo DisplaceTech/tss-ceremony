@@ -57,5 +57,6 @@ type Config struct {
 	Message   string
 	Speed     string
 	NoColor   bool
+	AutoQuit  bool
 	Ceremony  *CeremonyData
 }

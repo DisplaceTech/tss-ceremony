@@ -14,10 +14,11 @@ import (
 
 // Config holds the CLI configuration
 type Config struct {
-	Fixed   bool
-	Message string
-	Speed   string
-	NoColor bool
+	Fixed    bool
+	Message  string
+	Speed    string
+	NoColor  bool
+	AutoQuit bool
 
 	// Verify subcommand flags
 	Verify       bool
@@ -53,6 +54,7 @@ func ParseFlags() (*Config, error) {
 	flag.StringVar(&config.Message, "message", "", "Message to sign (default: Hello, threshold signatures)")
 	flag.StringVar(&config.Speed, "speed", DefaultSpeed, "Animation speed: slow, normal, or fast")
 	flag.BoolVar(&config.NoColor, "no-color", false, "Disable ANSI color output")
+	flag.BoolVar(&config.AutoQuit, "auto-quit", false, "Quit automatically after animation completes")
 
 	// Verify subcommand flags
 	flag.BoolVar(&config.Verify, "verify", false, "Verify a signature (subcommand)")
@@ -160,6 +162,7 @@ func main() {
 		Message:   displayMessage,
 		Speed:     config.Speed,
 		NoColor:   config.NoColor,
+		AutoQuit:  config.AutoQuit,
 		Ceremony:  ceremonyData,
 	}
 	model := tui.NewModel(tuiConfig, ceremony)

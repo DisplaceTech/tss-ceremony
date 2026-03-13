@@ -1,7 +1,10 @@
+// Package tui implements the ceremony animation as a single continuous
+// protocol trace that progressively reveals real cryptographic values.
 package tui
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -10,300 +13,481 @@ import (
 	"github.com/DisplaceTech/tss-ceremony/tui/scenes"
 )
 
-// Scene represents a single scene in the ceremony.
-// Concrete scenes (from tui/scenes/) implement the full interface including
-// Render and Narrator; placeholder scenes provide stub implementations.
-type Scene interface {
-	tea.Model
-	Render() string
-	Narrator() string
-}
+// Animation phases — each phase reveals one element of the protocol trace.
+const (
+	phaseStart    = iota // title only
+	phaseSecretA         // animate Party A secret
+	phaseSecretB         // animate Party B secret
+	phasePubA            // animate Party A public key
+	phasePubB            // animate Party B public key
+	phaseCombined        // animate combined key P
+	phaseMsg             // show message text (instant)
+	phaseHash            // animate SHA-256 hash
+	phaseNonceA          // animate nonce k_a
+	phaseNonceB          // animate nonce k_b
+	phaseR               // show R_a, R_b, R, r (instant)
+	phaseOT              // show OT values (instant)
+	phaseMtA             // show MtA values (instant)
+	phasePartialA        // animate partial sig s_a
+	phasePartialB        // animate partial sig s_b
+	phaseSig             // animate final s
+	phaseVerify          // show verification (instant)
+	phaseDone            // animation complete
+)
 
-// Footer holds footer display information
-type Footer struct {
-	CurrentScene int
-	TotalScenes  int
-	KeyBindings  string
-}
-
-// Header holds header display information
-type Header struct {
-	SceneNum   int
-	TotalScenes int
-	PhaseName  string
-}
-
-// Config holds the TUI configuration
-type Config struct {
-	FixedMode bool
-	Message   string
-	Speed     string
-	NoColor   bool
-}
-
-// Model represents the main TUI model that manages scenes
-type Model struct {
-	config       *scenes.Config
-	ceremony     *protocol.Ceremony
-	currentScene int
-	scenes       []Scene
-	quit         bool
-	speedDelay   time.Duration
-	styles       *scenes.Styles
-	header       Header
-	footer       Footer
-}
-
-// NewModel creates a new TUI model with all scenes wired up
-func NewModel(config *scenes.Config, ceremony *protocol.Ceremony) Model {
-	m := Model{
-		config:     config,
-		ceremony:   ceremony,
-		quit:       false,
-		speedDelay: getSpeedDelay(config.Speed),
-		styles:     scenes.NewStyles(config.NoColor),
-	}
-
-	m.scenes = m.createScenes()
-	m.updateHeaderFooter()
-
-	return m
-}
-
-// getSpeedDelay returns the delay duration based on speed setting
-func getSpeedDelay(speed string) time.Duration {
-	switch speed {
-	case "slow":
-		return 200 * time.Millisecond
-	case "fast":
-		return 50 * time.Millisecond
-	default:
-		return 100 * time.Millisecond
-	}
-}
-
-// updateHeaderFooter updates the header and footer data structures
-func (m *Model) updateHeaderFooter() {
-	m.header = Header{
-		SceneNum:    m.currentScene,
-		TotalScenes: len(m.scenes),
-		PhaseName:   sceneNames[m.currentScene],
-	}
-	m.footer = Footer{
-		CurrentScene: m.currentScene,
-		TotalScenes:  len(m.scenes),
-		KeyBindings:  "Enter/←/→/q",
-	}
-}
-
-// sceneNames maps scene indices to display names.
-var sceneNames = [20]string{
-	"Scene 0: Title Screen",
-	"Scene 1: Protocol Parameters",
-	"Scene 2: Secret Generation",
-	"Scene 3: Public Share Exchange",
-	"Scene 4: Combined Public Key",
-	"Scene 5: Message & Hash",
-	"Scene 6: Nonce Generation",
-	"Scene 7-8: Oblivious Transfer",
-	"Scene 7-8: Oblivious Transfer",
-	"Scene 9: MtA Conversion",
-	"Scene 10: Partial Signatures",
-	"Scene 11: Signature Assembly",
-	"Scene 12: Verification",
-	"Scene 13: Security Proof",
-	"Scene 14: Ceremony Summary",
-	"Scene 15: The Reveal",
-	"Scene 16: Schnorr vs ECDSA",
-	"Scene 17: FROST Side-by-Side",
-	"Scene 18: Animated FROST",
-	"Scene 19: Why Both Exist",
-}
-
-// createScenes creates all ceremony scenes.
-func (m Model) createScenes() []Scene {
-	s := make([]Scene, 20)
-
-	// Core DKLS ceremony scenes (0-4): Key Generation
-	s[0] = scenes.NewTitleScene(m.config, m.styles)
-	s[1] = scenes.NewConfigScene(m.config, m.styles)
-	s[2] = scenes.NewSecretGenScene(m.config, m.styles)
-	s[3] = scenes.NewPublicShareScene(m.config, m.styles)
-	s[4] = scenes.NewCombineScene(m.config, m.styles)
-
-	// Core DKLS ceremony scenes (5-11): Signing
-	s[5] = scenes.NewSignMessageScene(m.config, m.styles)
-	s[6] = scenes.NewSignNonceScene(m.config, m.styles)
-	s[7] = scenes.NewSignOTScene(m.config, m.styles)
-	s[8] = scenes.NewSignOTScene(m.config, m.styles) // OT continued (same scene type)
-	s[9] = scenes.NewMtAScene(m.config, m.styles)
-	s[10] = scenes.NewPartialSigScene(m.config, m.styles)
-	s[11] = scenes.NewCombineSigScene(m.config, m.styles)
-
-	// Core DKLS ceremony scenes (12-14): Verification & Summary
-	noColor := m.config != nil && m.config.NoColor
-	pubkey, sigR, sigS, message := "", "", "", ""
-	valid := true
-	if m.config != nil && m.config.Ceremony != nil {
-		cd := m.config.Ceremony
-		pubkey = cd.CombinedPubHex
-		sigR = cd.SignatureRHex
-		sigS = cd.SignatureSHex
-		message = cd.MessageText
-		valid = cd.Valid
-	}
-	s[12] = scenes.NewVerifyScene(noColor, pubkey, sigR, sigS, message, valid)
-	s[13] = scenes.NewImpossibilityScene(m.config, m.styles)
-	s[14] = scenes.NewSummaryScene(m.config, m.styles)
-
-	// Bonus scenes (15-19): Schnorr/FROST comparison
-	s[15] = scenes.NewRevealScene()
-	s[16] = scenes.NewSchnorrCompareScene()
-	s[17] = scenes.NewScene()
-	s[18] = scenes.NewFrostAnimatedScene(m.config)
-	s[19] = scenes.NewWhyBothScene()
-
-	return s
-}
-
-// Init initializes the model
-func (m Model) Init() tea.Cmd {
-	return tea.Tick(m.speedDelay, func(t time.Time) tea.Msg {
-		return tickMsg(t)
-	})
-}
-
-// tickMsg is a message type for animation ticks
 type tickMsg time.Time
 
-// Update handles messages and updates the model
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+// styles holds lipgloss styles, respecting --no-color.
+type styles struct {
+	cyan    lipgloss.Style
+	magenta lipgloss.Style
+	yellow  lipgloss.Style
+	green   lipgloss.Style
+	red     lipgloss.Style
+	dim     lipgloss.Style
+	bold    lipgloss.Style
+}
+
+func newStyles(noColor bool) styles {
+	if noColor {
+		return styles{
+			cyan: lipgloss.NewStyle(), magenta: lipgloss.NewStyle(),
+			yellow: lipgloss.NewStyle(), green: lipgloss.NewStyle(),
+			red: lipgloss.NewStyle(), dim: lipgloss.NewStyle(),
+			bold: lipgloss.NewStyle(),
+		}
+	}
+	return styles{
+		cyan:    lipgloss.NewStyle().Foreground(lipgloss.Color("6")),
+		magenta: lipgloss.NewStyle().Foreground(lipgloss.Color("5")),
+		yellow:  lipgloss.NewStyle().Foreground(lipgloss.Color("3")),
+		green:   lipgloss.NewStyle().Foreground(lipgloss.Color("2")),
+		red:     lipgloss.NewStyle().Foreground(lipgloss.Color("1")),
+		dim:     lipgloss.NewStyle().Foreground(lipgloss.Color("241")),
+		bold:    lipgloss.NewStyle().Bold(true),
+	}
+}
+
+// Model is the top-level bubbletea model for the ceremony animation.
+type Model struct {
+	config *scenes.Config
+	data   *scenes.CeremonyData
+	s      styles
+
+	phase     int // current animation phase
+	animPos   int // character position within current hex animation
+	waitTicks int // pause ticks between phases
+
+	width  int
+	height int
+	paused bool
+}
+
+// NewModel creates the animation model.
+func NewModel(config *scenes.Config, _ *protocol.Ceremony) *Model {
+	return &Model{
+		config: config,
+		data:   config.Ceremony,
+		s:      newStyles(config.NoColor),
+		phase:  phaseStart,
+	}
+}
+
+// Init starts the animation ticker.
+func (m *Model) Init() tea.Cmd {
+	return m.tick()
+}
+
+func (m *Model) tick() tea.Cmd {
+	d := 30 * time.Millisecond
+	switch m.config.Speed {
+	case "slow":
+		d = 60 * time.Millisecond
+	case "fast":
+		d = 12 * time.Millisecond
+	}
+	return tea.Tick(d, func(t time.Time) tea.Msg { return tickMsg(t) })
+}
+
+// Update handles input and animation ticks.
+func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "q", "ctrl+c", "esc":
-			m.quit = true
 			return m, tea.Quit
-		case "right", "l", " ", "n", "j", "down":
-			if m.currentScene < len(m.scenes)-1 {
-				m.currentScene++
-				m.updateHeaderFooter()
-				return m, m.scenes[m.currentScene].Init()
+		case " ":
+			m.paused = !m.paused
+			if !m.paused {
+				return m, m.tick()
 			}
-		case "left", "h", "p", "k", "up":
-			if m.currentScene > 0 {
-				m.currentScene--
-				m.updateHeaderFooter()
-				return m, m.scenes[m.currentScene].Init()
+			return m, nil
+		case "enter":
+			if m.phase < phaseDone {
+				m.phase++
+				m.animPos = 0
+				m.waitTicks = 0
 			}
+			return m, m.tick()
 		}
 
-	case tea.WindowSizeMsg:
-		// Handle window resize if needed
-
 	case tickMsg:
-		return m, tea.Tick(m.speedDelay, func(t time.Time) tea.Msg {
-			return tickMsg(t)
-		})
+		if m.paused || m.phase >= phaseDone {
+			return m, nil
+		}
+		m.advance()
+		return m, m.tick()
 	}
-
-	// Update current scene
-	if m.currentScene < len(m.scenes) {
-		updated, cmd := m.scenes[m.currentScene].Update(msg)
-		m.scenes[m.currentScene] = updated.(Scene)
-		return m, cmd
-	}
-
 	return m, nil
 }
 
-// View renders the current scene
-func (m Model) View() string {
-	if m.quit {
-		return "Goodbye!\n"
+// advance progresses the animation by one tick.
+func (m *Model) advance() {
+	// Inter-phase pause
+	if m.waitTicks > 0 {
+		m.waitTicks--
+		return
 	}
 
-	var view string
-
-	if m.config.FixedMode {
-		view += fixedModeBanner() + "\n"
+	target := m.phaseHex()
+	if target == "" {
+		// Instant phase
+		m.phase++
+		m.animPos = 0
+		m.waitTicks = 5
+		return
 	}
 
-	if m.currentScene < len(m.scenes) {
-		headerStyle := lipgloss.NewStyle().
-			Bold(true).
-			MarginBottom(1).
-			Foreground(lipgloss.Color("226"))
+	// Animated phase: advance character position
+	m.animPos++
+	if m.animPos >= len(target) {
+		m.phase++
+		m.animPos = 0
+		m.waitTicks = 8
+	}
+}
 
-		// Render header using Header struct
-		headerText := fmt.Sprintf("Scene %d/%d · %s",
-			m.header.SceneNum, m.header.TotalScenes, m.header.PhaseName)
-		view += headerStyle.Render(headerText) + "\n"
+// phaseHex returns the hex string to animate for the current phase,
+// or "" if the phase is an instant reveal.
+func (m *Model) phaseHex() string {
+	switch m.phase {
+	case phaseSecretA:
+		return m.data.PartyASecretHex
+	case phaseSecretB:
+		return m.data.PartyBSecretHex
+	case phasePubA:
+		return m.data.PartyAPubHex
+	case phasePubB:
+		return m.data.PartyBPubHex
+	case phaseCombined:
+		return m.data.CombinedPubHex
+	case phaseHash:
+		return m.data.MessageHash
+	case phaseNonceA:
+		return m.data.NonceAHex
+	case phaseNonceB:
+		return m.data.NonceBHex
+	case phasePartialA:
+		return m.data.PartialSigAHex
+	case phasePartialB:
+		return m.data.PartialSigBHex
+	case phaseSig:
+		return m.data.SignatureSHex
+	default:
+		return ""
+	}
+}
 
-		scene := m.scenes[m.currentScene]
-		view += scene.Render() + "\n"
+// View renders the current animation frame.
+func (m *Model) View() string {
+	content := m.renderTrace()
+	lines := strings.Split(content, "\n")
+	status := m.statusLine()
 
-		narrator := scene.Narrator()
-		if narrator != "" {
-			narratorStyle := lipgloss.NewStyle().
-				Foreground(lipgloss.Color("243")).
-				Bold(true).
-				MarginTop(1).
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(lipgloss.Color("241")).
-				Padding(0, 1)
-			view += "\n" + narratorStyle.Render("Narrator: "+narrator) + "\n"
+	avail := m.height - 1
+	if avail < 1 {
+		avail = 24
+	}
+
+	// Auto-scroll: show the bottom N lines
+	if len(lines) > avail {
+		lines = lines[len(lines)-avail:]
+	}
+	// Pad short content
+	for len(lines) < avail {
+		lines = append(lines, "")
+	}
+
+	return strings.Join(lines, "\n") + "\n" + status
+}
+
+func (m *Model) statusLine() string {
+	d := m.s.dim
+	if m.phase >= phaseDone {
+		return d.Render("  ceremony complete · [q] quit")
+	}
+	if m.paused {
+		return d.Render("  ▐▐ paused · [space] resume  [enter] skip step  [q] quit")
+	}
+	return d.Render("  ▶ [space] pause  [enter] skip step  [q] quit")
+}
+
+// ---------------------------------------------------------------------------
+// Rendering — builds the protocol trace as a single string
+// ---------------------------------------------------------------------------
+
+func (m *Model) section(title string) string {
+	w := m.width
+	if w < 80 {
+		w = 80
+	}
+	pad := w - len(title) - 8
+	if pad < 4 {
+		pad = 4
+	}
+	return m.s.bold.Render("  ─── "+title+" ") + m.s.dim.Render(strings.Repeat("─", pad))
+}
+
+func (m *Model) renderTrace() string {
+	var b strings.Builder
+
+	// Title — always visible
+	b.WriteString(m.s.bold.Render("  DKLS23 2-of-2 Threshold ECDSA"))
+	b.WriteString(m.s.dim.Render(" · secp256k1") + "\n")
+	w := m.width
+	if w < 80 {
+		w = 80
+	}
+	b.WriteString(m.s.dim.Render("  "+strings.Repeat("═", w-4)) + "\n")
+
+	if m.phase <= phaseStart {
+		return b.String()
+	}
+
+	// === Key Generation ===
+	b.WriteString("\n" + m.section("Key Generation") + "\n")
+	b.WriteString(m.s.cyan.Render("  a ") + m.animHex(phaseSecretA, m.data.PartyASecretHex))
+	b.WriteString(m.s.dim.Render("  Party A secret") + "\n")
+
+	if m.phase <= phaseSecretA {
+		return b.String()
+	}
+
+	b.WriteString(m.s.magenta.Render("  b ") + m.animHex(phaseSecretB, m.data.PartyBSecretHex))
+	b.WriteString(m.s.dim.Render("  Party B secret") + "\n")
+
+	if m.phase <= phaseSecretB {
+		return b.String()
+	}
+
+	b.WriteString(m.s.cyan.Render("  A") + m.s.dim.Render(" = a·G") + "\n")
+	b.WriteString("    " + m.animHex(phasePubA, m.data.PartyAPubHex) + "\n")
+
+	if m.phase <= phasePubA {
+		return b.String()
+	}
+
+	b.WriteString(m.s.magenta.Render("  B") + m.s.dim.Render(" = b·G") + "\n")
+	b.WriteString("    " + m.animHex(phasePubB, m.data.PartyBPubHex) + "\n")
+
+	if m.phase <= phasePubB {
+		return b.String()
+	}
+
+	b.WriteString(m.s.yellow.Render("  P") + m.s.dim.Render(" = A + B"))
+	b.WriteString(m.s.red.Render("  ← no one knows p where P = p·G") + "\n")
+	b.WriteString("    " + m.animHex(phaseCombined, m.data.CombinedPubHex) + "\n")
+
+	if m.phase <= phaseCombined {
+		return b.String()
+	}
+
+	// === Signing ===
+	b.WriteString("\n" + m.section("Signing") + "\n")
+	b.WriteString(m.s.dim.Render("  m ") + fmt.Sprintf(`"%s"`, m.data.MessageText) + "\n")
+
+	if m.phase <= phaseMsg {
+		return b.String()
+	}
+
+	b.WriteString(m.s.dim.Render("  H = SHA-256(m)") + "\n")
+	b.WriteString("    " + m.animHex(phaseHash, m.data.MessageHash) + "\n")
+
+	if m.phase <= phaseHash {
+		return b.String()
+	}
+
+	// === Nonces ===
+	b.WriteString("\n" + m.section("Nonces") + "\n")
+	b.WriteString(m.s.cyan.Render("  k_a ") + m.animHex(phaseNonceA, m.data.NonceAHex) + "\n")
+
+	if m.phase <= phaseNonceA {
+		return b.String()
+	}
+
+	b.WriteString(m.s.magenta.Render("  k_b ") + m.animHex(phaseNonceB, m.data.NonceBHex) + "\n")
+
+	if m.phase <= phaseNonceB {
+		return b.String()
+	}
+
+	// R values — instant reveal
+	if m.data.NonceAPubHex != "" {
+		b.WriteString(m.s.cyan.Render("  R_a") + m.s.dim.Render(" = k_a·G = ") + fmtHex(m.data.NonceAPubHex) + "\n")
+	}
+	if m.data.NonceBPubHex != "" {
+		b.WriteString(m.s.magenta.Render("  R_b") + m.s.dim.Render(" = k_b·G = ") + fmtHex(m.data.NonceBPubHex) + "\n")
+	}
+	if m.data.CombinedRPubHex != "" {
+		b.WriteString(m.s.yellow.Render("  R  ") + m.s.dim.Render(" = R_a + R_b = ") + fmtHex(m.data.CombinedRPubHex) + "\n")
+	}
+	if m.data.RHex != "" {
+		b.WriteString(m.s.yellow.Render("  r  ") + m.s.dim.Render(" = R.x mod n = ") + fmtHex(m.data.RHex) + "\n")
+	}
+
+	if m.phase <= phaseR {
+		return b.String()
+	}
+
+	// === Oblivious Transfer ===
+	b.WriteString("\n" + m.section("Oblivious Transfer") + "\n")
+	b.WriteString(m.s.dim.Render("  sender:   ") +
+		fmt.Sprintf("x₀ = %s", truncHex(m.data.OTInput0Hex, 16)) + "\n")
+	b.WriteString(m.s.dim.Render("            ") +
+		fmt.Sprintf("x₁ = %s", truncHex(m.data.OTInput1Hex, 16)) + "\n")
+	b.WriteString(m.s.dim.Render("  receiver: ") +
+		fmt.Sprintf("c  = %d    x_c = %s", m.data.OTChoiceBit, truncHex(m.data.OTOutputHex, 16)) + "\n")
+
+	if m.phase <= phaseOT {
+		return b.String()
+	}
+
+	// === MtA ===
+	b.WriteString("\n" + m.section("Multiplicative to Additive") + "\n")
+	b.WriteString(m.s.dim.Render("  α + β ≡ k_a · k_b  (mod n)") + "\n")
+	b.WriteString(m.s.cyan.Render("  α ") + fmtHex(m.data.AlphaHex) + "\n")
+	b.WriteString(m.s.magenta.Render("  β ") + fmtHex(m.data.BetaHex) + "\n")
+
+	if m.phase <= phaseMtA {
+		return b.String()
+	}
+
+	// === Partial Signatures ===
+	b.WriteString("\n" + m.section("Partial Signatures") + "\n")
+	b.WriteString(m.s.cyan.Render("  s_a") + m.s.dim.Render(" = k_a⁻¹·(H + r·a) + α") + "\n")
+	b.WriteString("      " + m.animHex(phasePartialA, m.data.PartialSigAHex) + "\n")
+
+	if m.phase <= phasePartialA {
+		return b.String()
+	}
+
+	b.WriteString(m.s.magenta.Render("  s_b") + m.s.dim.Render(" = k_b⁻¹·(H + r·b) + β") + "\n")
+	b.WriteString("      " + m.animHex(phasePartialB, m.data.PartialSigBHex) + "\n")
+
+	if m.phase <= phasePartialB {
+		return b.String()
+	}
+
+	// === Combine ===
+	b.WriteString("\n" + m.section("Combine") + "\n")
+	b.WriteString(m.s.yellow.Render("  s") + m.s.dim.Render(" = s_a + s_b mod n") + "\n")
+	b.WriteString("    " + m.animHex(phaseSig, m.data.SignatureSHex) + "\n")
+
+	if m.phase <= phaseSig {
+		return b.String()
+	}
+
+	// === Result ===
+	b.WriteString("\n" + m.section("Signature") + "\n")
+	b.WriteString(m.s.yellow.Render("  r ") + fmtHex(m.data.SignatureRHex) + "\n")
+	b.WriteString(m.s.yellow.Render("  s ") + fmtHex(m.data.SignatureSHex) + "\n")
+	b.WriteString("\n")
+
+	// === Verify ===
+	if m.data.Valid {
+		b.WriteString("  ECDSA.Verify(P, H(m), r, s) → " + m.s.green.Render("✓ VALID") + "\n")
+	} else {
+		b.WriteString("  ECDSA.Verify(P, H(m), r, s) → " + m.s.red.Render("✗ INVALID") + "\n")
+	}
+	b.WriteString("\n")
+	b.WriteString(m.s.dim.Render("  The signature (r, s) is valid under combined key P.") + "\n")
+	b.WriteString(m.s.dim.Render("  No single party ever held the private key p.") + "\n")
+
+	return b.String()
+}
+
+// ---------------------------------------------------------------------------
+// Hex rendering helpers
+// ---------------------------------------------------------------------------
+
+// animHex returns a formatted hex string with rolling animation for the
+// current phase, completed hex for past phases, or dots for future phases.
+func (m *Model) animHex(phase int, realHex string) string {
+	if realHex == "" {
+		return m.s.dim.Render("(n/a)")
+	}
+	if m.phase > phase {
+		return fmtHex(realHex)
+	}
+	if m.phase < phase {
+		return fmtDots(len(realHex))
+	}
+	// Currently animating
+	var sb strings.Builder
+	for i := 0; i < len(realHex); i++ {
+		if i > 0 && i%8 == 0 {
+			sb.WriteRune(' ')
+		}
+		if i < m.animPos {
+			sb.WriteByte(realHex[i])
+		} else if i < m.animPos+3 {
+			sb.WriteRune(rollingHexChar())
+		} else {
+			sb.WriteRune('·')
 		}
 	}
-
-	// Render footer using Footer struct
-	navigationStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("243"))
-	view += "\n" + navigationStyle.Render(fmt.Sprintf("[%d/%d] [Key bindings: %s]",
-		m.footer.CurrentScene, m.footer.TotalScenes, m.footer.KeyBindings))
-
-	return view
+	return sb.String()
 }
 
-// GetCurrentScene returns the current scene index
-func (m Model) GetCurrentScene() int {
-	return m.currentScene
-}
-
-// GetSceneCount returns the total number of scenes
-func (m Model) GetSceneCount() int {
-	return len(m.scenes)
-}
-
-// fixedModeBanner returns a banner for fixed mode
-func fixedModeBanner() string {
-	return "=== FIXED MODE ==="
-}
-
-// PlaceholderScene is a placeholder for scene implementations not yet built.
-type PlaceholderScene struct {
-	SceneNum int
-	Config   *scenes.Config
-	Styles   *scenes.Styles
-}
-
-func (s *PlaceholderScene) Init() tea.Cmd { return nil }
-
-func (s *PlaceholderScene) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	return s, nil
-}
-
-func (s *PlaceholderScene) View() string {
-	if s.Config != nil && s.Config.NoColor {
-		return fmt.Sprintf("Scene %d placeholder - implement me!", s.SceneNum)
+// fmtHex formats a hex string with spaces every 8 characters.
+func fmtHex(hex string) string {
+	var sb strings.Builder
+	for i := 0; i < len(hex); i++ {
+		if i > 0 && i%8 == 0 {
+			sb.WriteRune(' ')
+		}
+		sb.WriteByte(hex[i])
 	}
-	return fmt.Sprintf("%sScene %d placeholder - implement me!%s", "\033[36m", s.SceneNum, "\033[0m")
+	return sb.String()
 }
 
-func (s *PlaceholderScene) Render() string {
-	return s.View()
+// fmtDots returns a dot string matching the display length of n hex chars.
+func fmtDots(n int) string {
+	var sb strings.Builder
+	for i := 0; i < n; i++ {
+		if i > 0 && i%8 == 0 {
+			sb.WriteRune(' ')
+		}
+		sb.WriteRune('·')
+	}
+	return sb.String()
 }
 
-func (s *PlaceholderScene) Narrator() string {
-	return ""
+// truncHex shows at most maxBytes bytes of hex, adding "…" if truncated.
+func truncHex(hex string, maxBytes int) string {
+	max := maxBytes * 2
+	if len(hex) <= max {
+		return fmtHex(hex)
+	}
+	return fmtHex(hex[:max]) + "…"
+}
+
+// rollingHexChar returns a pseudo-random hex character for animation.
+func rollingHexChar() rune {
+	const hexChars = "0123456789abcdef"
+	return rune(hexChars[time.Now().UnixNano()%16])
 }

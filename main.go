@@ -29,8 +29,6 @@ type Config struct {
 	SigSFile     string
 	MessageFile  string
 
-	// Layout validation flags
-	ValidateLayout bool
 }
 
 // Default values
@@ -55,7 +53,6 @@ func ParseFlags() (*Config, error) {
 	flag.StringVar(&config.Message, "message", "", "Message to sign (default: Hello, threshold signatures!)")
 	flag.StringVar(&config.Speed, "speed", DefaultSpeed, "Animation speed: slow, normal, or fast")
 	flag.BoolVar(&config.NoColor, "no-color", false, "Disable ANSI color output")
-	flag.BoolVar(&config.ValidateLayout, "validate-layout", false, "Run layout validation and exit")
 
 	// Verify subcommand flags
 	flag.BoolVar(&config.Verify, "verify", false, "Verify a signature (subcommand)")
@@ -133,21 +130,6 @@ func main() {
 			fmt.Println("Invalid")
 			os.Exit(1)
 		}
-		return
-	}
-
-	// Handle layout validation mode
-	if config.ValidateLayout {
-		fmt.Println("\n=== Layout Validation ===")
-		spec := tui.DefaultLayoutSpec()
-		sizeResult := tui.ValidateTerminalSize(80, 24, spec)
-		fmt.Println(tui.FormatMismatchReport(sizeResult))
-		structResult := tui.ValidateLayoutStructure("", spec)
-		fmt.Println(tui.FormatMismatchReport(structResult))
-		if !sizeResult.IsValid || !structResult.IsValid {
-			os.Exit(1)
-		}
-		fmt.Println("\n✓ All layout validations passed")
 		return
 	}
 

@@ -102,22 +102,6 @@ func (s *SignNonceScene) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return s, nil
 }
 
-// getNonceAHex returns the final nonce A hex value.
-func (s *SignNonceScene) getNonceAHex() string {
-	if s.config.Ceremony != nil && s.config.Ceremony.NonceAHex != "" {
-		return s.config.Ceremony.NonceAHex
-	}
-	return string(s.nonceAChars)
-}
-
-// getNonceBHex returns the final nonce B hex value.
-func (s *SignNonceScene) getNonceBHex() string {
-	if s.config.Ceremony != nil && s.config.Ceremony.NonceBHex != "" {
-		return s.config.Ceremony.NonceBHex
-	}
-	return string(s.nonceBChars)
-}
-
 // Render renders the scene view.
 func (s *SignNonceScene) Render() string {
 	var builder strings.Builder

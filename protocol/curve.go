@@ -12,17 +12,11 @@ const (
 	// p is the prime field modulus: 2^256 - 2^32 - 977
 	p = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F"
 
-	// a is the curve parameter a (for secp256k1: y^2 = x^3 + 7, so a = 0)
-	a = "0"
-
 	// b is the curve parameter b (for secp256k1: y^2 = x^3 + 7, so b = 7)
 	b = "7"
 
 	// n is the order of the base point G (number of points on the curve)
 	n = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141"
-
-	// h is the cofactor (for secp256k1: h = 1)
-	h = "1"
 
 	// Gx is the x-coordinate of the base point G
 	Gx = "79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798"

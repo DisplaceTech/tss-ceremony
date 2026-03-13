@@ -1,0 +1,33 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+  exclusions:
+    paths:
+      - vendor
+    rules:
+      # The decred secp256k1 library requires using the deprecated S256() interface.
+      # There is no non-deprecated alternative for custom curves.
+      - linters: [staticcheck]
+        text: "SA1019"
+      # Defensive coding patterns — intentional
+      - linters: [staticcheck]
+        text: "SA4003"
+      - linters: [staticcheck]
+        text: "SA9003"
+      # Style suggestions we choose not to adopt
+      - linters: [staticcheck]
+        text: "QF1003"
+      - linters: [staticcheck]
+        text: "S1009"
+      # Unchecked errors in deferred cleanup calls in tests
+      - path: _test\.go
+        linters: [errcheck]
+      # Unchecked deferred Close (non-critical cleanup)
+      - text: "Error return value of.*Close.*is not checked"
+        linters: [errcheck]

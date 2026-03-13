@@ -68,12 +68,16 @@ func (s *SecretGenScene) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s.partyAChars[s.partyAIndex] = s.getRandomHexChar()
 			s.partyAIndex++
 			if s.partyAIndex >= 64 {
+				// Snap to real secret value
+				s.snapToReal(s.partyAChars, s.getRealSecretA())
 				s.phase = 1
 			}
 		} else if s.phase == 1 && s.partyBIndex < 64 {
 			s.partyBChars[s.partyBIndex] = s.getRandomHexChar()
 			s.partyBIndex++
 			if s.partyBIndex >= 64 {
+				// Snap to real secret value
+				s.snapToReal(s.partyBChars, s.getRealSecretB())
 				s.phase = 2
 			}
 		} else if s.phase == 2 {
@@ -89,6 +93,32 @@ func (s *SecretGenScene) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // getRandomHexChar returns a random hex character (deterministic in fixed mode)
 func (s *SecretGenScene) getRandomHexChar() rune {
 	return pickHexChar(s.config.FixedMode)
+}
+
+// getRealSecretA returns the real Party A secret hex from ceremony data.
+func (s *SecretGenScene) getRealSecretA() string {
+	if s.config.Ceremony != nil {
+		return s.config.Ceremony.PartyASecretHex
+	}
+	return ""
+}
+
+// getRealSecretB returns the real Party B secret hex from ceremony data.
+func (s *SecretGenScene) getRealSecretB() string {
+	if s.config.Ceremony != nil {
+		return s.config.Ceremony.PartyBSecretHex
+	}
+	return ""
+}
+
+// snapToReal overwrites the animation buffer with the real hex value.
+func (s *SecretGenScene) snapToReal(chars []rune, realHex string) {
+	if realHex == "" {
+		return
+	}
+	for i := 0; i < len(chars) && i < len(realHex); i++ {
+		chars[i] = rune(realHex[i])
+	}
 }
 
 // Render renders the scene view

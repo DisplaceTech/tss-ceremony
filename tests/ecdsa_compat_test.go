@@ -32,8 +32,8 @@ func TestECDSASignatureCompatibility(t *testing.T) {
 		t.Fatal("Signature components are empty")
 	}
 
-	// The signature is signed with Party A's key, so we verify against Party A's public key
-	partyAPubBytes := ceremony.PartyAPub.SerializeUncompressed()
+	// The signature is signed with combined (phantom) key, so we verify against the phantom public key
+	partyAPubBytes := ceremony.PhantomKey.SerializeUncompressed()
 
 	pubKey, err := secp256k1.ParsePubKey(partyAPubBytes)
 	if err != nil {
@@ -88,8 +88,8 @@ func TestECDSASignatureCompatibilityWithVerifyFunction(t *testing.T) {
 	// Get signature components
 	rHex, sHex := ceremony.GetSignatureHex()
 
-	// Use Party A's public key (uncompressed format for VerifySignature)
-	partyAPubBytes := ceremony.PartyAPub.SerializeUncompressed()
+	// Use the combined (phantom) public key (uncompressed format for VerifySignature)
+	partyAPubBytes := ceremony.PhantomKey.SerializeUncompressed()
 	partyAPubHex := hex.EncodeToString(partyAPubBytes[1:]) // Skip 0x04 prefix
 
 	// Encode message as hex
@@ -122,8 +122,8 @@ func TestECDSASignatureInvalidRejects(t *testing.T) {
 	// Get signature components
 	rHex, sHex := ceremony.GetSignatureHex()
 
-	// Use Party A's public key (uncompressed format for VerifySignature)
-	partyAPubBytes := ceremony.PartyAPub.SerializeUncompressed()
+	// Use the combined (phantom) public key (uncompressed format for VerifySignature)
+	partyAPubBytes := ceremony.PhantomKey.SerializeUncompressed()
 	partyAPubHex := hex.EncodeToString(partyAPubBytes[1:]) // Skip 0x04 prefix
 
 	// Try to verify with wrong message
@@ -171,8 +171,8 @@ func TestECDSASignatureRandomMode(t *testing.T) {
 		t.Fatal("Signature components are empty")
 	}
 
-	// The signature is signed with Party A's key, so we verify against Party A's public key
-	partyAPubBytes := ceremony.PartyAPub.SerializeUncompressed()
+	// The signature is signed with combined (phantom) key, so we verify against the phantom public key
+	partyAPubBytes := ceremony.PhantomKey.SerializeUncompressed()
 
 	pubKey, err := secp256k1.ParsePubKey(partyAPubBytes)
 	if err != nil {

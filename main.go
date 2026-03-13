@@ -52,7 +52,7 @@ func ParseFlags() (*Config, error) {
 	}
 
 	flag.BoolVar(&config.Fixed, "fixed", false, "Use fixed seed for deterministic runs")
-	flag.StringVar(&config.Message, "message", "", "Message to sign (hex encoded)")
+	flag.StringVar(&config.Message, "message", "", "Message to sign (default: Hello, threshold signatures!)")
 	flag.StringVar(&config.Speed, "speed", DefaultSpeed, "Animation speed: slow, normal, or fast")
 	flag.BoolVar(&config.NoColor, "no-color", false, "Disable ANSI color output")
 	flag.BoolVar(&config.ValidateLayout, "validate-layout", false, "Run layout validation and exit")
@@ -140,48 +140,121 @@ func main() {
 	if config.ValidateLayout {
 		fmt.Println("\n=== Layout Validation ===")
 		spec := tui.DefaultLayoutSpec()
-		
-		// Validate terminal size
-		width, height := 80, 24 // Default terminal size for validation
-		sizeResult := tui.ValidateTerminalSize(width, height, spec)
+		sizeResult := tui.ValidateTerminalSize(80, 24, spec)
 		fmt.Println(tui.FormatMismatchReport(sizeResult))
-		
-		// Validate layout structure
-		// For now, we'll just validate the spec itself
 		structResult := tui.ValidateLayoutStructure("", spec)
 		fmt.Println(tui.FormatMismatchReport(structResult))
-		
-		// Check if all specs are valid
-		allValid := sizeResult.IsValid && structResult.IsValid
-		if !allValid {
+		if !sizeResult.IsValid || !structResult.IsValid {
 			os.Exit(1)
 		}
 		fmt.Println("\n✓ All layout validations passed")
 		return
 	}
 
-	// Initialize ceremony
+	// Initialize ceremony and run signing protocol BEFORE the TUI starts.
+	// This computes all real cryptographic values that scenes will display.
 	ceremony, err := protocol.NewCeremony(config.Fixed, config.Message, config.Speed, config.NoColor)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error initializing ceremony: %v\n", err)
 		os.Exit(1)
 	}
+	if err := ceremony.SignMessage(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error running signing ceremony: %v\n", err)
+		os.Exit(1)
+	}
 
-	// Initialize TUI model with ceremony reference
+	// Build ceremony data for TUI display
+	ceremonyData := buildCeremonyData(ceremony)
+
+	// Determine message for display
+	displayMessage := config.Message
+	if displayMessage == "" {
+		displayMessage = string(ceremony.Message)
+	}
+
+	// Initialize TUI model with ceremony results
 	tuiConfig := &scenes.Config{
 		FixedMode: config.Fixed,
-		Message:   config.Message,
+		Message:   displayMessage,
 		Speed:     config.Speed,
 		NoColor:   config.NoColor,
+		Ceremony:  ceremonyData,
 	}
 	model := tui.NewModel(tuiConfig, ceremony)
 
 	// Create and run bubbletea program
 	p := tea.NewProgram(model, tea.WithAltScreen())
-
-	// Run the program
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error running TUI: %v\n", err)
 		os.Exit(1)
 	}
+
+	// Print summary after TUI exits
+	r, s := ceremony.GetSignatureHex()
+	fmt.Println("\n=== Ceremony Complete ===")
+	fmt.Printf("Public Key:  %s\n", ceremony.GetPhantomPubKeyHex())
+	fmt.Printf("Signature R: %s\n", r)
+	fmt.Printf("Signature S: %s\n", s)
+	fmt.Printf("Message:     %s\n", string(ceremony.Message))
+}
+
+// buildCeremonyData converts protocol.Ceremony results into TUI-displayable data.
+func buildCeremonyData(c *protocol.Ceremony) *scenes.CeremonyData {
+	data := &scenes.CeremonyData{
+		MessageText:    string(c.Message),
+		CombinedPubHex: c.GetPhantomPubKeyHex(),
+		PartyAPubHex:   c.GetPartyAPubKeyHex(),
+		PartyBPubHex:   c.GetPartyBPubKeyHex(),
+		Valid:          true,
+	}
+
+	sigR, sigS := c.GetSignatureHex()
+	data.SignatureRHex = sigR
+	data.SignatureSHex = sigS
+
+	if c.SigningResult != nil {
+		sr := c.SigningResult
+		data.MessageHash = fmt.Sprintf("%x", sr.Hash)
+		data.NonceAHex = fmt.Sprintf("%x", sr.NonceA)
+		data.NonceBHex = fmt.Sprintf("%x", sr.NonceB)
+		if sr.NonceAPub != nil {
+			data.NonceAPubHex = fmt.Sprintf("%x", sr.NonceAPub.SerializeCompressed())
+		}
+		if sr.NonceBPub != nil {
+			data.NonceBPubHex = fmt.Sprintf("%x", sr.NonceBPub.SerializeCompressed())
+		}
+		if sr.CombinedR != nil {
+			data.CombinedRPubHex = fmt.Sprintf("%x", sr.CombinedR.SerializeCompressed())
+		}
+		if sr.R != nil {
+			data.RHex = fmt.Sprintf("%x", sr.R)
+		}
+		if sr.OTInputs[0] != nil {
+			data.OTInput0Hex = fmt.Sprintf("%x", sr.OTInputs[0])
+		}
+		if sr.OTInputs[1] != nil {
+			data.OTInput1Hex = fmt.Sprintf("%x", sr.OTInputs[1])
+		}
+		data.OTChoiceBit = sr.OTChoice
+		if sr.OTOutput != nil {
+			data.OTOutputHex = fmt.Sprintf("%x", sr.OTOutput)
+		}
+		if sr.Alpha != nil {
+			data.AlphaHex = fmt.Sprintf("%x", sr.Alpha)
+		}
+		if sr.Beta != nil {
+			data.BetaHex = fmt.Sprintf("%x", sr.Beta)
+		}
+		if sr.PartialSigA != nil {
+			data.PartialSigAHex = fmt.Sprintf("%x", sr.PartialSigA)
+		}
+		if sr.PartialSigB != nil {
+			data.PartialSigBHex = fmt.Sprintf("%x", sr.PartialSigB)
+		}
+	}
+
+	data.PartyASecretHex = fmt.Sprintf("%x", c.PartyAKey.Serialize())
+	data.PartyBSecretHex = fmt.Sprintf("%x", c.PartyBKey.Serialize())
+
+	return data
 }

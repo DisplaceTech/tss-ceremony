@@ -13,7 +13,7 @@ type CeremonyConfig struct {
 	// FixedMode enables deterministic runs with fixed seeds for testing
 	FixedMode bool
 
-	// Message is the hex-encoded message to sign (optional, defaults to demo message)
+	// Message is the plaintext message to sign (optional, defaults to demo message)
 	Message string
 
 	// Speed controls animation speed: "slow", "normal", or "fast"
@@ -67,13 +67,6 @@ func (c *CeremonyConfig) Validate() error {
 
 	if !validSpeeds[c.Speed] {
 		return fmt.Errorf("invalid speed '%s': must be one of slow, normal, or fast", c.Speed)
-	}
-
-	if c.Message != "" {
-		_, err := hex.DecodeString(c.Message)
-		if err != nil {
-			return fmt.Errorf("invalid message hex: %w", err)
-		}
 	}
 
 	if c.ParticipantCount < 2 {
@@ -190,16 +183,11 @@ func NewCeremonyFromConfig(config *CeremonyConfig) (*Ceremony, error) {
 		PhaseComplete: make(map[int]bool),
 	}
 
-	// Initialize message
+	// Initialize message (plaintext, not hex)
 	if config.Message != "" {
-		msgBytes, err := hex.DecodeString(config.Message)
-		if err != nil {
-			return nil, fmt.Errorf("invalid message hex: %w", err)
-		}
-		ceremony.Message = msgBytes
+		ceremony.Message = []byte(config.Message)
 	} else {
-		// Default message for demonstration
-		ceremony.Message = []byte("TSS Ceremony Demo")
+		ceremony.Message = []byte("Hello, threshold signatures!")
 	}
 
 	// Initialize based on mode

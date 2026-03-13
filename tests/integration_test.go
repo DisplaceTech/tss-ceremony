@@ -32,8 +32,8 @@ func TestIntegrationFullCeremonyECDSAVerification(t *testing.T) {
 		t.Fatal("Signature components are empty")
 	}
 
-	// Get Party A's public key (the key used for signing)
-	partyAPubBytes := ceremony.PartyAPub.SerializeUncompressed()
+	// Get the combined (phantom) public key used for signing
+	partyAPubBytes := ceremony.PhantomKey.SerializeUncompressed()
 
 	// Parse the public key
 	pubKey, err := secp256k1.ParsePubKey(partyAPubBytes)
@@ -89,15 +89,15 @@ func TestIntegrationCeremonyWithProtocolVerifyFunction(t *testing.T) {
 	// Get signature components
 	rHex, sHex := ceremony.GetSignatureHex()
 
-	// Use Party A's public key (uncompressed format for VerifySignature)
-	partyAPubBytes := ceremony.PartyAPub.SerializeUncompressed()
-	partyAPubHex := hex.EncodeToString(partyAPubBytes[1:]) // Skip 0x04 prefix
+	// Use the combined (phantom) public key (uncompressed format for VerifySignature)
+	phantomPubBytes := ceremony.PhantomKey.SerializeUncompressed()
+	phantomPubHex := hex.EncodeToString(phantomPubBytes[1:]) // Skip 0x04 prefix
 
 	// Encode message as hex
 	msgHex := hex.EncodeToString(ceremony.Message)
 
 	// Verify using protocol's VerifySignature function
-	valid, err := protocol.VerifySignature(partyAPubHex, rHex, sHex, msgHex)
+	valid, err := protocol.VerifySignature(phantomPubHex, rHex, sHex, msgHex)
 	if err != nil {
 		t.Fatalf("VerifySignature returned error: %v", err)
 	}
@@ -109,10 +109,9 @@ func TestIntegrationCeremonyWithProtocolVerifyFunction(t *testing.T) {
 // TestIntegrationCeremonyWithCustomMessage tests the ceremony with a custom message.
 func TestIntegrationCeremonyWithCustomMessage(t *testing.T) {
 	// Create a ceremony with a custom message
-	customMessage := []byte("Custom test message for integration")
-	customMessageHex := hex.EncodeToString(customMessage)
+	customMessage := "Custom test message for integration"
 
-	ceremony, err := protocol.NewCeremony(true, customMessageHex, "normal", false)
+	ceremony, err := protocol.NewCeremony(true, customMessage, "normal", false)
 	if err != nil {
 		t.Fatalf("Failed to create ceremony: %v", err)
 	}
@@ -129,8 +128,8 @@ func TestIntegrationCeremonyWithCustomMessage(t *testing.T) {
 		t.Fatal("Signature components are empty")
 	}
 
-	// Get Party A's public key
-	partyAPubBytes := ceremony.PartyAPub.SerializeUncompressed()
+	// Get the combined (phantom) public key
+	partyAPubBytes := ceremony.PhantomKey.SerializeUncompressed()
 
 	// Parse the public key
 	pubKey, err := secp256k1.ParsePubKey(partyAPubBytes)
@@ -188,8 +187,8 @@ func TestIntegrationCeremonyRandomMode(t *testing.T) {
 		t.Fatal("Signature components are empty")
 	}
 
-	// Get Party A's public key
-	partyAPubBytes := ceremony.PartyAPub.SerializeUncompressed()
+	// Get the combined (phantom) public key
+	partyAPubBytes := ceremony.PhantomKey.SerializeUncompressed()
 
 	pubKey, err := secp256k1.ParsePubKey(partyAPubBytes)
 	if err != nil {
@@ -242,15 +241,15 @@ func TestIntegrationCeremonyInvalidSignatureRejection(t *testing.T) {
 	// Get signature components
 	rHex, sHex := ceremony.GetSignatureHex()
 
-	// Use Party A's public key
-	partyAPubBytes := ceremony.PartyAPub.SerializeUncompressed()
-	partyAPubHex := hex.EncodeToString(partyAPubBytes[1:])
+	// Use the combined (phantom) public key
+	phantomPubBytes := ceremony.PhantomKey.SerializeUncompressed()
+	phantomPubHex := hex.EncodeToString(phantomPubBytes[1:])
 
 	// Try to verify with wrong message
 	wrongMsg := []byte("Wrong message")
 	wrongMsgHex := hex.EncodeToString(wrongMsg)
 
-	valid, err := protocol.VerifySignature(partyAPubHex, rHex, sHex, wrongMsgHex)
+	valid, err := protocol.VerifySignature(phantomPubHex, rHex, sHex, wrongMsgHex)
 	if err != nil {
 		t.Fatalf("VerifySignature returned error: %v", err)
 	}
@@ -262,7 +261,7 @@ func TestIntegrationCeremonyInvalidSignatureRejection(t *testing.T) {
 	tamperedR := "0000000000000000000000000000000000000000000000000000000000000001"
 	msgHex := hex.EncodeToString(ceremony.Message)
 
-	valid, err = protocol.VerifySignature(partyAPubHex, tamperedR, sHex, msgHex)
+	valid, err = protocol.VerifySignature(phantomPubHex, tamperedR, sHex, msgHex)
 	if err != nil {
 		t.Fatalf("VerifySignature returned error: %v", err)
 	}
@@ -334,9 +333,9 @@ func TestIntegrationNoColorFlag(t *testing.T) {
 		t.Fatal("Signature components are empty")
 	}
 
-	// Verify the signature is still valid
-	partyAPubBytes := ceremony.PartyAPub.SerializeUncompressed()
-	pubKey, err := secp256k1.ParsePubKey(partyAPubBytes)
+	// Verify the signature against the combined (phantom) public key
+	phantomPubBytes := ceremony.PhantomKey.SerializeUncompressed()
+	pubKey, err := secp256k1.ParsePubKey(phantomPubBytes)
 	if err != nil {
 		t.Fatalf("Failed to parse public key: %v", err)
 	}

@@ -284,15 +284,15 @@ func (m *Model) renderTrace() string {
 		return b.String()
 	}
 
-	b.WriteString(m.s.cyan.Render("  A") + m.s.dim.Render(" = a·G  ") + m.s.dim.Render("Party A public") + "\n")
-	b.WriteString("    " + m.animHex(phasePubA, m.data.PartyAPubHex) + "\n")
+	b.WriteString(m.s.cyan.Render("  A ") + m.animHex(phasePubA, m.data.PartyAPubHex))
+	b.WriteString(m.s.dim.Render("  Party A public") + "\n")
 
 	if m.phase <= phasePubA {
 		return b.String()
 	}
 
-	b.WriteString(m.s.magenta.Render("  B") + m.s.dim.Render(" = b·G  ") + m.s.dim.Render("Party B public") + "\n")
-	b.WriteString("    " + m.animHex(phasePubB, m.data.PartyBPubHex) + "\n")
+	b.WriteString(m.s.magenta.Render("  B ") + m.animHex(phasePubB, m.data.PartyBPubHex))
+	b.WriteString(m.s.dim.Render("  Party B public") + "\n")
 
 	if m.phase <= phasePubB {
 		return b.String()

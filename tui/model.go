@@ -36,7 +36,13 @@ const (
 	phaseDERKey          // show public key DER breakdown (instant)
 	phaseDERSig          // show signature DER breakdown (instant)
 	phaseDERCmd          // show openssl command (instant)
-	phaseDone            // animation complete
+	phaseDone            // DKLS animation complete
+	phaseFrostIntro      // equation comparison
+	phaseFrostKeygen     // FROST keygen values
+	phaseFrostSign       // FROST signing (nonces + challenge + partials)
+	phaseFrostResult     // FROST signature + verify
+	phaseFrostSummary    // protocol complexity comparison
+	phaseAllDone         // comparison complete
 )
 
 type tickMsg time.Time
@@ -135,8 +141,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.phase++
 				m.animPos = 0
 				m.waitTicks = 0
+			} else if m.phase >= phaseFrostIntro && m.phase < phaseAllDone {
+				m.phase++
 			}
 			return m, m.tick()
+		case "c":
+			if m.phase == phaseDone && m.data.FrostCombinedPubHex != "" {
+				m.phase = phaseFrostIntro
+			}
+			return m, nil
 		}
 
 	case tickMsg:
@@ -144,7 +157,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if m.phase >= phaseDone {
-			if m.config.AutoQuit {
+			if m.phase == phaseDone && m.config.AutoQuit {
 				if m.waitTicks <= 0 {
 					return m, tea.Quit
 				}
@@ -172,7 +185,7 @@ func (m *Model) advance() {
 		// Instant phase
 		m.phase++
 		m.animPos = 0
-		if m.phase >= phaseDone && m.config.AutoQuit {
+		if m.phase == phaseDone && m.config.AutoQuit {
 			m.waitTicks = 100 // ~3s pause before auto-quit
 		} else {
 			m.waitTicks = 5
@@ -245,7 +258,16 @@ func (m *Model) View() string {
 
 func (m *Model) statusLine() string {
 	d := m.s.dim
+	if m.phase >= phaseAllDone {
+		return d.Render("  comparison complete · [q] quit")
+	}
+	if m.phase >= phaseFrostIntro {
+		return d.Render("  [enter] next  [q] quit")
+	}
 	if m.phase >= phaseDone {
+		if m.data.FrostCombinedPubHex != "" {
+			return d.Render("  ceremony complete · [c] compare to FROST  [q] quit")
+		}
 		return d.Render("  ceremony complete · [q] quit")
 	}
 	if m.paused {
@@ -492,6 +514,93 @@ func (m *Model) renderTrace() string {
 	b.WriteString("\n")
 	b.WriteString(m.renderColorizedCmd())
 
+	if m.phase < phaseFrostIntro {
+		return b.String()
+	}
+
+	// === FROST Comparison ===
+	b.WriteString("\n\n")
+	b.WriteString(m.s.bold.Render("  FROST (Schnorr) Comparison"))
+	b.WriteString(m.s.dim.Render(" · same keys, same nonces, simpler math") + "\n")
+	b.WriteString(m.s.dim.Render("  "+strings.Repeat("═", w-4)) + "\n")
+
+	b.WriteString("\n" + m.section("The Key Insight") + "\n")
+	b.WriteString(m.s.dim.Render("  ECDSA:   s = k") + m.s.red.Render("⁻¹") + m.s.dim.Render("·(z + r·x)") + "\n")
+	b.WriteString(m.s.dim.Render("                 ↑ this inverse breaks linearity") + "\n")
+	b.WriteString(m.s.dim.Render("                   → needs OT + MtA to split") + "\n")
+	b.WriteString("\n")
+	b.WriteString(m.s.dim.Render("  Schnorr: s = k + e·x") + "\n")
+	b.WriteString(m.s.green.Render("               ↑ pure addition — threshold-friendly!") + "\n")
+
+	if m.phase <= phaseFrostIntro {
+		return b.String()
+	}
+
+	// FROST Keygen — same keys as DKLS
+	b.WriteString("\n" + m.section("FROST Key Generation") + "\n")
+	b.WriteString(m.s.dim.Render("  Same keys as DKLS — direct comparison:") + "\n")
+	b.WriteString(m.s.cyan.Render("  a ") + fmtHex(m.data.FrostPartyASecretHex))
+	b.WriteString(m.s.dim.Render("  ← same Party A secret") + "\n")
+	b.WriteString(m.s.magenta.Render("  b ") + fmtHex(m.data.FrostPartyBSecretHex))
+	b.WriteString(m.s.dim.Render("  ← same Party B secret") + "\n")
+	b.WriteString(m.s.yellow.Render("  P") + m.s.dim.Render(" = a·G + b·G = ") + fmtHex(m.data.FrostCombinedPubHex))
+	b.WriteString(m.s.dim.Render("  ← identical combined key") + "\n")
+
+	if m.phase <= phaseFrostKeygen {
+		return b.String()
+	}
+
+	// FROST Signing — same nonces as DKLS
+	b.WriteString("\n" + m.section("FROST Signing") + "\n")
+	b.WriteString(m.s.dim.Render("  Same nonces as DKLS:") + "\n")
+	b.WriteString(m.s.cyan.Render("  k_a ") + fmtHex(m.data.FrostNonceAHex))
+	b.WriteString(m.s.dim.Render("  ← same") + "\n")
+	b.WriteString(m.s.magenta.Render("  k_b ") + fmtHex(m.data.FrostNonceBHex))
+	b.WriteString(m.s.dim.Render("  ← same") + "\n")
+	b.WriteString(m.s.yellow.Render("  R  ") + m.s.dim.Render(" = R_a + R_b"))
+	b.WriteString(m.s.dim.Render("                                          ← identical R point") + "\n")
+	b.WriteString("\n")
+	b.WriteString(m.s.dim.Render("  Challenge") + m.s.yellow.Render(" (differs from ECDSA's z = SHA-256(m))") + m.s.dim.Render(":") + "\n")
+	b.WriteString(m.s.dim.Render("  e = H(R || m || P) = ") + fmtHex(m.data.FrostChallengeHex) + "\n")
+	b.WriteString("\n")
+	b.WriteString(m.s.dim.Render("  Partial signatures") + m.s.green.Render("  ← no OT, no MtA — just addition!") + "\n")
+	b.WriteString(m.s.cyan.Render("  s_a") + m.s.dim.Render(" = k_a + e·a = ") + fmtHex(m.data.FrostPartialSigAHex) + "\n")
+	b.WriteString(m.s.magenta.Render("  s_b") + m.s.dim.Render(" = k_b + e·b = ") + fmtHex(m.data.FrostPartialSigBHex) + "\n")
+
+	if m.phase <= phaseFrostSign {
+		return b.String()
+	}
+
+	// FROST Signature Result
+	b.WriteString("\n" + m.section("FROST Signature") + "\n")
+	b.WriteString(m.s.yellow.Render("  R ") + fmtHex(m.data.FrostSignatureRHex) + "\n")
+	b.WriteString(m.s.yellow.Render("  s ") + fmtHex(m.data.FrostSignatureSHex) + "\n")
+	b.WriteString("\n")
+	if m.data.FrostValid {
+		b.WriteString("  Schnorr.Verify(P, m, R, s) → " + m.s.green.Render("✓ VALID") + "\n")
+	} else {
+		b.WriteString("  Schnorr.Verify(P, m, R, s) → " + m.s.red.Render("✗ INVALID") + "\n")
+	}
+
+	if m.phase <= phaseFrostResult {
+		return b.String()
+	}
+
+	// Protocol Complexity Comparison
+	b.WriteString("\n" + m.section("Protocol Complexity") + "\n")
+	b.WriteString("  " + m.s.bold.Render("DKLS (ECDSA)") + "              " + m.s.bold.Render("FROST (Schnorr)") + "\n")
+	b.WriteString(m.s.dim.Render("  ──────────────────        ──────────────────") + "\n")
+	b.WriteString("  Key generation            Key generation\n")
+	b.WriteString("  Nonce generation          Nonce generation\n")
+	b.WriteString("  " + m.s.red.Render("Oblivious Transfer") + "        " + m.s.green.Render("── not needed ──") + "\n")
+	b.WriteString("  " + m.s.red.Render("MtA conversion") + "            " + m.s.green.Render("── not needed ──") + "\n")
+	b.WriteString("  Partial signatures        Partial signatures\n")
+	b.WriteString("  Signature combine         Signature combine\n")
+	b.WriteString("  " + m.s.red.Render("4+ rounds") + "                 " + m.s.green.Render("2 rounds") + "\n")
+	b.WriteString("\n")
+	b.WriteString(m.s.dim.Render("  ECDSA: Bitcoin, Ethereum, TLS — the infrastructure of today") + "\n")
+	b.WriteString(m.s.dim.Render("  Schnorr: Taproot, Ed25519 — the elegant future") + "\n")
+	b.WriteString(m.s.dim.Render("  Same security. Same curve. Different trade-offs.") + "\n")
 
 	return b.String()
 }

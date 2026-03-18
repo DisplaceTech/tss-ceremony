@@ -521,7 +521,7 @@ func (m *Model) renderTrace() string {
 	// === FROST Comparison ===
 	b.WriteString("\n\n")
 	b.WriteString(m.s.bold.Render("  FROST (Schnorr) Comparison"))
-	b.WriteString(m.s.dim.Render(" · same curve, simpler math") + "\n")
+	b.WriteString(m.s.dim.Render(" · same keys, same nonces, simpler math") + "\n")
 	b.WriteString(m.s.dim.Render("  "+strings.Repeat("═", w-4)) + "\n")
 
 	b.WriteString("\n" + m.section("The Key Insight") + "\n")
@@ -536,32 +536,34 @@ func (m *Model) renderTrace() string {
 		return b.String()
 	}
 
-	// FROST Keygen
+	// FROST Keygen — same keys as DKLS
 	b.WriteString("\n" + m.section("FROST Key Generation") + "\n")
-	b.WriteString(m.s.dim.Render("  Same additive key structure as DKLS:") + "\n")
+	b.WriteString(m.s.dim.Render("  Same keys as DKLS — direct comparison:") + "\n")
 	b.WriteString(m.s.cyan.Render("  a ") + fmtHex(m.data.FrostPartyASecretHex))
-	b.WriteString(m.s.dim.Render("  Party A secret") + "\n")
+	b.WriteString(m.s.dim.Render("  ← same Party A secret") + "\n")
 	b.WriteString(m.s.magenta.Render("  b ") + fmtHex(m.data.FrostPartyBSecretHex))
-	b.WriteString(m.s.dim.Render("  Party B secret") + "\n")
-	b.WriteString(m.s.yellow.Render("  P") + m.s.dim.Render(" = a·G + b·G = ") + fmtHex(m.data.FrostCombinedPubHex) + "\n")
+	b.WriteString(m.s.dim.Render("  ← same Party B secret") + "\n")
+	b.WriteString(m.s.yellow.Render("  P") + m.s.dim.Render(" = a·G + b·G = ") + fmtHex(m.data.FrostCombinedPubHex))
+	b.WriteString(m.s.dim.Render("  ← identical combined key") + "\n")
 
 	if m.phase <= phaseFrostKeygen {
 		return b.String()
 	}
 
-	// FROST Signing
+	// FROST Signing — same nonces as DKLS
 	b.WriteString("\n" + m.section("FROST Signing") + "\n")
-	b.WriteString(m.s.dim.Render("  Nonces:") + "\n")
+	b.WriteString(m.s.dim.Render("  Same nonces as DKLS:") + "\n")
 	b.WriteString(m.s.cyan.Render("  k_a ") + fmtHex(m.data.FrostNonceAHex))
-	b.WriteString(m.s.dim.Render("  random") + "\n")
+	b.WriteString(m.s.dim.Render("  ← same") + "\n")
 	b.WriteString(m.s.magenta.Render("  k_b ") + fmtHex(m.data.FrostNonceBHex))
-	b.WriteString(m.s.dim.Render("  random") + "\n")
-	b.WriteString(m.s.yellow.Render("  R  ") + m.s.dim.Render(" = R_a + R_b") + "\n")
+	b.WriteString(m.s.dim.Render("  ← same") + "\n")
+	b.WriteString(m.s.yellow.Render("  R  ") + m.s.dim.Render(" = R_a + R_b"))
+	b.WriteString(m.s.dim.Render("                                          ← identical R point") + "\n")
 	b.WriteString("\n")
-	b.WriteString(m.s.dim.Render("  Challenge:") + "\n")
+	b.WriteString(m.s.dim.Render("  Challenge") + m.s.yellow.Render(" (differs from ECDSA's z = SHA-256(m))") + m.s.dim.Render(":") + "\n")
 	b.WriteString(m.s.dim.Render("  e = H(R || m || P) = ") + fmtHex(m.data.FrostChallengeHex) + "\n")
 	b.WriteString("\n")
-	b.WriteString(m.s.dim.Render("  Partial signatures:") + m.s.green.Render("  ← no OT, no MtA needed!") + "\n")
+	b.WriteString(m.s.dim.Render("  Partial signatures") + m.s.green.Render("  ← no OT, no MtA — just addition!") + "\n")
 	b.WriteString(m.s.cyan.Render("  s_a") + m.s.dim.Render(" = k_a + e·a = ") + fmtHex(m.data.FrostPartialSigAHex) + "\n")
 	b.WriteString(m.s.magenta.Render("  s_b") + m.s.dim.Render(" = k_b + e·b = ") + fmtHex(m.data.FrostPartialSigBHex) + "\n")
 

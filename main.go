@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"math/big"
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -149,7 +150,7 @@ func main() {
 
 	// Build ceremony data for TUI display
 	ceremonyData := buildCeremonyData(ceremony)
-	buildFrostData(ceremonyData, ceremony.Message, config.Fixed)
+	buildFrostData(ceremonyData, ceremony)
 
 	// Determine message for display
 	displayMessage := config.Message
@@ -189,37 +190,70 @@ func main() {
 	}
 }
 
-// buildFrostData runs the FROST signing protocol and populates comparison data.
-func buildFrostData(data *scenes.CeremonyData, message []byte, fixed bool) {
-	signer, err := protocol.NewFROSTSigner(protocol.FROSTConfig{
-		Fixed:   fixed,
-		Message: message,
-	})
-	if err != nil {
-		return
-	}
-	sig, err := signer.Sign(message)
-	if err != nil {
+// buildFrostData runs FROST signing with the exact same keys and nonces as
+// the DKLS ceremony for a direct apples-to-apples comparison.
+func buildFrostData(data *scenes.CeremonyData, c *protocol.Ceremony) {
+	sr := c.SigningResult
+	if sr == nil {
 		return
 	}
 
-	data.FrostPartyASecretHex = fmt.Sprintf("%064x", signer.Parties[0].Secret)
-	data.FrostPartyBSecretHex = fmt.Sprintf("%064x", signer.Parties[1].Secret)
-	data.FrostPartyAPubHex = fmt.Sprintf("%x", signer.Parties[0].Public.SerializeCompressed()[1:])
-	data.FrostPartyBPubHex = fmt.Sprintf("%x", signer.Parties[1].Public.SerializeCompressed()[1:])
-	data.FrostCombinedPubHex = fmt.Sprintf("%x", signer.P.SerializeCompressed()[1:])
-	data.FrostNonceAHex = fmt.Sprintf("%064x", signer.Parties[0].Nonce)
-	data.FrostNonceBHex = fmt.Sprintf("%064x", signer.Parties[1].Nonce)
+	// Reuse the DKLS keys and nonces so the viewer sees identical inputs
+	aSecret := new(big.Int).SetBytes(c.PartyAKey.Serialize())
+	bSecret := new(big.Int).SetBytes(c.PartyBKey.Serialize())
+
+	signer := &protocol.FROSTSigner{
+		Parties: []*protocol.FROSTParty{
+			{
+				ID:         0,
+				Secret:     aSecret,
+				Public:     c.PartyAPub,
+				Nonce:      sr.NonceA,
+				NoncePoint: sr.NonceAPub,
+			},
+			{
+				ID:         1,
+				Secret:     bSecret,
+				Public:     c.PartyBPub,
+				Nonce:      sr.NonceB,
+				NoncePoint: sr.NonceBPub,
+			},
+		},
+		P: c.PhantomKey,
+		R: sr.CombinedR,
+	}
+
+	// Run only the FROST-specific steps (challenge, partials, aggregate)
+	if err := signer.ComputeChallenge(c.Message); err != nil {
+		return
+	}
+	if err := signer.ComputePartialSignatures(); err != nil {
+		return
+	}
+	if err := signer.AggregateSignatures(); err != nil {
+		return
+	}
+
+	// Keys and nonces match DKLS; copy the already-formatted hex
+	data.FrostPartyASecretHex = data.PartyASecretHex
+	data.FrostPartyBSecretHex = data.PartyBSecretHex
+	data.FrostPartyAPubHex = data.PartyAPubHex
+	data.FrostPartyBPubHex = data.PartyBPubHex
+	data.FrostCombinedPubHex = data.CombinedPubHex
+	data.FrostNonceAHex = data.NonceAHex
+	data.FrostNonceBHex = data.NonceBHex
+
+	// FROST-specific values (different from DKLS)
 	data.FrostChallengeHex = fmt.Sprintf("%064x", signer.E)
 	data.FrostPartialSigAHex = fmt.Sprintf("%064x", signer.Parties[0].PartialSig)
 	data.FrostPartialSigBHex = fmt.Sprintf("%064x", signer.Parties[1].PartialSig)
 
 	rBytes := make([]byte, 32)
-	sig.R.X().FillBytes(rBytes)
+	signer.R.X().FillBytes(rBytes)
 	data.FrostSignatureRHex = fmt.Sprintf("%x", rBytes)
-	data.FrostSignatureSHex = fmt.Sprintf("%064x", sig.S)
+	data.FrostSignatureSHex = fmt.Sprintf("%064x", signer.S)
 
-	valid, verr := protocol.VerifySchnorrSignature(signer.P, sig.R, sig.S, message)
+	valid, verr := protocol.VerifySchnorrSignature(signer.P, signer.R, signer.S, c.Message)
 	data.FrostValid = verr == nil && valid
 }
 

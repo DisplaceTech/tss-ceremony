@@ -245,13 +245,20 @@ func (c *Ceremony) SignMessage() error {
 	z := new(big.Int).SetBytes(hash[:])
 
 	// Step 3: Generate nonce shares
-	ka, err := GenerateNonceShare()
-	if err != nil {
-		return fmt.Errorf("nonce A: %w", err)
-	}
-	kb, err := GenerateNonceShare()
-	if err != nil {
-		return fmt.Errorf("nonce B: %w", err)
+	var ka, kb *big.Int
+	if c.FixedMode {
+		ka = big.NewInt(100)
+		kb = big.NewInt(101)
+	} else {
+		var err error
+		ka, err = GenerateNonceShare()
+		if err != nil {
+			return fmt.Errorf("nonce A: %w", err)
+		}
+		kb, err = GenerateNonceShare()
+		if err != nil {
+			return fmt.Errorf("nonce B: %w", err)
+		}
 	}
 
 	// Step 4: Compute nonce public points
@@ -271,19 +278,38 @@ func (c *Ceremony) SignMessage() error {
 	}
 
 	// Step 6: OT demonstration (educational)
-	otInputs, err := GenerateOTInputs()
-	if err != nil {
-		return fmt.Errorf("OT inputs: %w", err)
-	}
-	otOutput, err := SimulateOT(otInputs, 0)
-	if err != nil {
-		return fmt.Errorf("OT: %w", err)
+	var otInputs [2]*big.Int
+	var otOutput *big.Int
+	if c.FixedMode {
+		otInputs = [2]*big.Int{big.NewInt(200), big.NewInt(201)}
+		otOutput, err = SimulateOT(otInputs, 0)
+		if err != nil {
+			return fmt.Errorf("OT: %w", err)
+		}
+	} else {
+		otInputs, err = GenerateOTInputs()
+		if err != nil {
+			return fmt.Errorf("OT inputs: %w", err)
+		}
+		otOutput, err = SimulateOT(otInputs, 0)
+		if err != nil {
+			return fmt.Errorf("OT: %w", err)
+		}
 	}
 
 	// Step 7: MtA — convert multiplicative nonce shares to additive
-	alpha, beta, err := MultiplicativeToAdditive(ka, kb)
-	if err != nil {
-		return fmt.Errorf("MtA: %w", err)
+	var alpha, beta *big.Int
+	if c.FixedMode {
+		product := new(big.Int).Mul(ka, kb)
+		product.Mod(product, n)
+		beta = big.NewInt(300)
+		alpha = new(big.Int).Sub(product, beta)
+		alpha.Mod(alpha, n)
+	} else {
+		alpha, beta, err = MultiplicativeToAdditive(ka, kb)
+		if err != nil {
+			return fmt.Errorf("MtA: %w", err)
+		}
 	}
 
 	// Step 8: Compute partial signatures

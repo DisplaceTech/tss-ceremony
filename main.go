@@ -149,6 +149,7 @@ func main() {
 
 	// Build ceremony data for TUI display
 	ceremonyData := buildCeremonyData(ceremony)
+	buildFrostData(ceremonyData, ceremony.Message, config.Fixed)
 
 	// Determine message for display
 	displayMessage := config.Message
@@ -186,6 +187,40 @@ func main() {
 		fmt.Println("\n=== Verify with OpenSSL ===")
 		fmt.Println(cmd)
 	}
+}
+
+// buildFrostData runs the FROST signing protocol and populates comparison data.
+func buildFrostData(data *scenes.CeremonyData, message []byte, fixed bool) {
+	signer, err := protocol.NewFROSTSigner(protocol.FROSTConfig{
+		Fixed:   fixed,
+		Message: message,
+	})
+	if err != nil {
+		return
+	}
+	sig, err := signer.Sign(message)
+	if err != nil {
+		return
+	}
+
+	data.FrostPartyASecretHex = fmt.Sprintf("%064x", signer.Parties[0].Secret)
+	data.FrostPartyBSecretHex = fmt.Sprintf("%064x", signer.Parties[1].Secret)
+	data.FrostPartyAPubHex = fmt.Sprintf("%x", signer.Parties[0].Public.SerializeCompressed()[1:])
+	data.FrostPartyBPubHex = fmt.Sprintf("%x", signer.Parties[1].Public.SerializeCompressed()[1:])
+	data.FrostCombinedPubHex = fmt.Sprintf("%x", signer.P.SerializeCompressed()[1:])
+	data.FrostNonceAHex = fmt.Sprintf("%064x", signer.Parties[0].Nonce)
+	data.FrostNonceBHex = fmt.Sprintf("%064x", signer.Parties[1].Nonce)
+	data.FrostChallengeHex = fmt.Sprintf("%064x", signer.E)
+	data.FrostPartialSigAHex = fmt.Sprintf("%064x", signer.Parties[0].PartialSig)
+	data.FrostPartialSigBHex = fmt.Sprintf("%064x", signer.Parties[1].PartialSig)
+
+	rBytes := make([]byte, 32)
+	sig.R.X().FillBytes(rBytes)
+	data.FrostSignatureRHex = fmt.Sprintf("%x", rBytes)
+	data.FrostSignatureSHex = fmt.Sprintf("%064x", sig.S)
+
+	valid, verr := protocol.VerifySchnorrSignature(signer.P, sig.R, sig.S, message)
+	data.FrostValid = verr == nil && valid
 }
 
 // buildCeremonyData converts protocol.Ceremony results into TUI-displayable data.

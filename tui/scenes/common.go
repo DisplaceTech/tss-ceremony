@@ -49,6 +49,21 @@ type CeremonyData struct {
 	PubKeyYHex     string // Y coordinate of combined public key
 	SigDERHex      string // full DER-encoded signature
 	PubKeyDERHex   string // full DER-encoded public key
+
+	// FROST comparison data
+	FrostPartyASecretHex string
+	FrostPartyBSecretHex string
+	FrostPartyAPubHex    string
+	FrostPartyBPubHex    string
+	FrostCombinedPubHex  string
+	FrostNonceAHex       string
+	FrostNonceBHex       string
+	FrostChallengeHex    string
+	FrostPartialSigAHex  string
+	FrostPartialSigBHex  string
+	FrostSignatureRHex   string
+	FrostSignatureSHex   string
+	FrostValid           bool
 }
 
 // Config holds the TUI configuration.
